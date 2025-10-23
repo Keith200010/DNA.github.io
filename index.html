@@ -1,0 +1,3052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNA分子模型</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#9333EA', // 紫色作为主色调
+                        secondary: '#16A34A', // 鲜亮绿色作为辅助色
+                        sugar: '#8B4513',
+                        phosphate: '#9333EA',
+                        adenine: '#0000FF',
+                        thymine: '#FF0000',
+                        cytosine: '#00FF00',
+                        guanine: '#FFFF00',
+                        phosphodiester: '#FFFFFF',
+                        hydrogen: '#A5F3FC'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .slider-thumb::-webkit-slider-thumb { 
+                @apply appearance-none w-4 h-4 rounded-full bg-primary cursor-pointer; 
+                box-shadow: 0 0 8px rgba(147, 51, 234, 0.8);
+            }
+            .slider-thumb::-moz-range-thumb { 
+                @apply w-4 h-4 rounded-full bg-primary cursor-pointer border-none; 
+                box-shadow: 0 0 8px rgba(147, 51, 234, 0.8);
+            }
+            .component-info { @apply p-2 rounded text-xs mb-2 border-l-2; }
+            /* 发光效果类 */
+            .glow {
+                box-shadow: 0 0 10px rgba(147, 51, 234, 0.5);
+            }
+            .glow-hover:hover {
+                box-shadow: 0 0 15px rgba(147, 51, 234, 0.7);
+            }
+        }
+        
+        /* 确保在所有屏幕尺寸下都保持左右布局 */
+        body {
+            overflow: hidden;
+            background-color: #0f0a1c !important; /* 深紫色背景 */
+            color: #e5e5ff !important; /* 浅紫色文字 */
+        }
+        
+        /* 黑紫色科技风格的全局样式 */
+        .bg-gray-800\/20 {
+            background-color: rgba(42, 23, 75, 0.8) !important; /* 紫色半透明背景 */
+            backdrop-filter: blur(5px);
+            border-right: 1px solid rgba(147, 51, 234, 0.3); /* 紫色边框 */
+        }
+        
+        .bg-gray-700\/15 {
+            background-color: rgba(147, 51, 234, 0.1) !important; /* 紫色半透明背景 */
+            border: 1px solid rgba(147, 51, 234, 0.2);
+            border-radius: 8px;
+        }
+        
+        .bg-gray-700\/20 {
+            background-color: rgba(147, 51, 234, 0.2) !important; /* 紫色半透明背景 */
+            border: 1px solid rgba(147, 51, 234, 0.3);
+            border-radius: 8px;
+        }
+        
+        /* 自定义滚动条 - 科技风格 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 10, 28, 0.5);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(147, 51, 234, 0.5);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(147, 51, 234, 0.7);
+        }
+        
+        /* 控制面板固定宽度和高度 */
+        .control-panel {
+            flex-shrink: 0;
+        }
+        
+        /* 3D渲染区域自适应剩余空间 */
+        .model-container {
+            flex-grow: 1;
+            min-width: 0;
+        }
+        
+        /* 文字滚动动画 */
+        @keyframes marquee {
+            0% {
+                transform: translateX(100%);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+        
+        .animate-marquee {
+            display: inline-block;
+            animation: marquee 20s linear infinite;
+            white-space: nowrap;
+        }
+        
+        /* 强制小屏幕也保持水平布局，避免换行 */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: row !important;
+            }
+            
+            .control-panel {
+                width: 160px !important;
+                font-size: 11px;
+            }
+            
+            .control-panel h1 {
+                font-size: 14px !important;
+            }
+            
+            .control-panel .fa-dna {
+                font-size: 18px !important;
+            }
+        }
+        
+        /* 浅色主题样式 */
+        .light-theme {
+            background-color: #f8fafc !important;
+            color: #1e293b !important;
+        }
+        
+        .light-theme .control-panel {
+            background-color: #e2e8f0 !important;
+            backdrop-filter: none !important;
+            border-right: 1px solid #cbd5e1 !important;
+        }
+        
+        .light-theme #canvasContainer {
+            background-color: #ffffff !important;
+        }
+        
+        .light-theme #status {
+            background-color: #e2e8f0 !important;
+            border-color: #9333EA !important;
+            color: #1e293b !important;
+            backdrop-filter: none !important;
+        }
+        
+        .light-theme .mb-4.p-3.bg-gray-700\/15,
+        .light-theme .mb-3.p-3.bg-gray-700\/15 {
+            background-color: #f1f5f9 !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+        
+        .light-theme .text-gray-300,
+        .light-theme .text-gray-500 {
+            color: #64748b !important;
+        }
+        
+        .light-theme #loader {
+            background-color: #ffffff !important;
+            color: #1e293b !important;
+        }
+        
+        .light-theme .animate-marquee {
+            color: #ffffff;
+        }
+        
+        .light-theme #themeToggle:hover {
+            background-color: #cbd5e1 !important;
+        }
+        
+        /* 生态绿主题样式 */
+        .eco-theme {
+            background: linear-gradient(135deg, #1a535c 0%, #2ec4b6 100%) !important;
+            color: #f7fff7 !important;
+        }
+        
+        .eco-theme .control-panel {
+            background-color: rgba(26, 83, 92, 0.8) !important;
+            backdrop-filter: blur(8px) !important;
+            border-right: 1px solid #5bc0be !important;
+        }
+        
+        .eco-theme #canvasContainer {
+            background: radial-gradient(circle, #2ec4b6 0%, #1a535c 100%) !important;
+        }
+        
+        .eco-theme #status {
+            background-color: rgba(26, 83, 92, 0.7) !important;
+            border-color: #5bc0be !important;
+            color: #f7fff7 !important;
+            backdrop-filter: blur(4px) !important;
+        }
+        
+        .eco-theme .mb-4.p-3.bg-gray-700\/15,
+        .eco-theme .mb-3.p-3.bg-gray-700\/15 {
+            background-color: rgba(26, 83, 92, 0.6) !important;
+            border: 1px solid #5bc0be !important;
+        }
+        
+        .eco-theme .text-gray-300,
+        .eco-theme .text-gray-500 {
+            color: #cbf3f0 !important;
+        }
+        
+        .eco-theme #loader {
+            background-color: rgba(26, 83, 92, 0.9) !important;
+            color: #f7fff7 !important;
+        }
+        
+        .eco-theme .animate-marquee {
+            color: #cbf3f0;
+        }
+        
+        .eco-theme #themeToggle:hover {
+            background-color: rgba(91, 192, 190, 0.3) !important;
+        }
+        
+        /* 海洋主题样式 - 淡蓝色效果 */
+        .ocean-theme {
+            background: linear-gradient(135deg, #87ceeb 0%, #1e90ff 100%) !important;
+            color: #ffffff !important;
+        }
+        
+        .ocean-theme .control-panel {
+            background-color: rgba(135, 206, 235, 0.8) !important;
+            backdrop-filter: blur(8px) !important;
+            border-right: 1px solid #6495ed !important;
+        }
+        
+        .ocean-theme #canvasContainer {
+            background-color: #e0f7fa !important;
+        }
+        
+        .ocean-theme #status {
+            background-color: rgba(135, 206, 235, 0.7) !important;
+            border-color: #6495ed !important;
+            color: #ffffff !important;
+            backdrop-filter: blur(4px) !important;
+        }
+        
+        .ocean-theme .mb-4.p-3.bg-gray-700\/15,
+        .ocean-theme .mb-3.p-3.bg-gray-700\/15 {
+            background-color: rgba(135, 206, 235, 0.6) !important;
+            border: 1px solid #6495ed !important;
+        }
+        
+        .ocean-theme .text-gray-300,
+        .ocean-theme .text-gray-500 {
+            color: #ffffff !important;
+        }
+        
+        .ocean-theme #loader {
+            background-color: rgba(2, 48, 71, 0.9) !important;
+            color: #e0f7fa !important;
+        }
+        
+        .ocean-theme .animate-marquee {
+            color: #90e0ef;
+        }
+        
+        .ocean-theme #themeToggle:hover {
+            background-color: rgba(2, 136, 209, 0.3) !important;
+        }
+        
+        /* 滑块在浅色主题下的样式 */
+        .light-theme input[type="range"] {
+            background-color: #cbd5e1 !important;
+        }
+        
+        /* 滑块在深色主题下的样式 */
+        input[type="range"] {
+            background-color: rgba(147, 51, 234, 0.2) !important;
+        }
+        
+        /* 复选框在浅色主题下的样式 */
+        .light-theme input[type="checkbox"] {
+            accent-color: #9333EA;
+        }
+        
+        /* 复选框在深色主题下的样式 */
+        input[type="checkbox"] {
+            accent-color: #9333EA;
+        }
+        
+        /* 按钮样式增强 */
+        button {
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-1px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        /* 颜色指示器增强 */
+        [id$="ColorIndicator"] {
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s ease;
+        }
+        
+        [id$="ColorIndicator"]:hover {
+            border-color: rgba(255, 255, 255, 0.8);
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 h-screen flex overflow-hidden">
+    <!-- 左侧控制面板 -->
+    <div class="control-panel w-64 bg-gray-800/20 p-4 z-10 overflow-y-auto h-screen">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center">
+                <i class="fa fa-dna text-primary text-3xl mr-3"></i>
+                <h1 class="text-lg font-bold">DNA分子模型</h1>
+            </div>
+            <!-- 主题切换按钮 -->
+            <button id="themeToggle" class="p-2 rounded-full hover:bg-gray-700/50 transition-colors flex items-center">
+                <i class="fa fa-sun-o text-yellow-400 mr-2"></i>
+                <span id="themeText" class="text-xs">亮色主题</span>
+            </button>
+        </div>
+        
+        <!-- 状态显示 -->
+        <div id="status" class="mb-4 p-3 bg-gray-700/20 rounded border border-primary/30">
+            <p class="text-sm font-medium flex items-center">
+                <i class="fa fa-circle-o-notch fa-spin mr-2"></i>
+                <span>加载中...</span>
+            </p>
+        </div>
+        
+        <!-- 旋转控制 -->
+        <div class="mb-4 p-3 bg-gray-700/15 rounded">
+            <h3 class="text-sm font-medium mb-3 flex items-center">
+                <i class="fa fa-refresh text-primary mr-2"></i>旋转控制
+            </h3>
+            <div class="slider-control mb-3">
+                <label for="rotationSpeed" class="block mb-1 text-xs">旋转速度</label>
+                <input type="range" id="rotationSpeed" min="0" max="0.1" step="0.001" value="0.003" 
+                       class="w-full h-2 bg-gray-700 rounded slider-thumb">
+                <div class="flex justify-between mt-1">
+                    <span class="text-xs text-gray-500">停止</span>
+                    <span id="rotationSpeedValue" class="text-xs text-primary">0.003</span>
+                    <span class="text-xs text-gray-500">最快</span>
+                </div>
+            </div>
+            <div class="flex items-center text-xs">
+                <input type="checkbox" id="reverseRotation" class="mr-2">
+                <label for="reverseRotation">反向旋转</label>
+            </div>
+        </div>
+        
+        <!-- 尺寸控制 -->
+        <div class="mb-4 p-3 bg-gray-700/15 rounded">
+            <h3 class="text-sm font-medium mb-3 flex items-center">
+                <i class="fa fa-arrows-alt text-primary mr-2"></i>尺寸控制
+            </h3>
+            <div class="slider-control mb-3">
+                <label for="nucleotideCount" class="block mb-1 text-xs">DNA长度（核苷酸数量）</label>
+                <input type="range" id="nucleotideCount" min="3" max="30" value="12" 
+                       class="w-full h-2 bg-gray-700 rounded slider-thumb">
+                <div class="flex justify-between mt-1">
+                    <span class="text-xs text-gray-500">最短</span>
+                    <span id="nucleotideValue" class="text-xs text-primary">12</span>
+                    <span class="text-xs text-gray-500">最长</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 显示选项 -->
+        <div class="mb-4 p-3 bg-gray-700/15 rounded">
+            <h3 class="text-sm font-medium mb-3 flex items-center">
+                <i class="fa fa-eye text-primary mr-2"></i>显示选项
+            </h3>
+            <div class="space-y-2">
+                <label class="flex items-center text-xs">
+                    <input type="checkbox" id="showSugars" checked class="mr-2">
+                    显示五碳糖
+                </label>
+                <label class="flex items-center text-xs">
+                    <input type="checkbox" id="showPhosphates" checked class="mr-2">
+                    显示磷酸基团
+                </label>
+                <label class="flex items-center text-xs">
+                    <input type="checkbox" id="showBases" checked class="mr-2">
+                    显示碱基
+                </label>
+                <label class="flex items-center text-xs">
+                    <input type="checkbox" id="showPhosBonds" checked class="mr-2">
+                    显示磷酸二脂键
+                </label>
+                <label class="flex items-center text-xs">
+                    <input type="checkbox" id="showHydroBonds" checked class="mr-2">
+                    显示氢键
+                </label>
+                <label class="flex items-center text-xs">
+                    <input type="checkbox" id="showLabels" checked class="mr-2">
+                    显示化学标识字母
+                </label>
+            </div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div class="mb-4 space-y-2">
+            <button id="resetView" class="w-full bg-primary hover:bg-primary/80 text-white py-2 px-3 rounded text-sm transition">
+                <i class="fa fa-refresh mr-1"></i> 重置DNA模型
+            </button>
+            <button id="resetColors" class="w-full bg-secondary hover:bg-secondary/80 text-white py-2 px-3 rounded text-sm transition">
+                <i class="fa fa-paint-brush mr-1"></i> 恢复默认颜色
+            </button>
+        </div>
+        
+        <!-- 标识说明和颜色自定义 -->
+        <div class="mb-4 p-3 bg-gray-700/15 rounded">
+            <h3 class="text-sm font-medium mb-3 flex items-center">
+                <i class="fa fa-tag text-primary mr-2"></i>化学标识说明（点击颜色可自定义）
+            </h3>
+            
+            <!-- 链1颜色控制 -->
+            <div class="mb-3">
+                <h4 class="text-xs font-semibold mb-2 text-blue-400">链1颜色（5'→3'方向）</h4>
+                <ul class="text-xs space-y-2 text-gray-300">
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="strand1PhosphateColorIndicator" class="inline-block w-4 h-4 bg-purple-600 rounded-full mr-1 cursor-pointer"></span>
+                            <span>链1 - 磷酸基团</span>
+                        </div>
+                        <input type="color" id="strand1PhosphateColorPicker" value="#9333EA" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="strand1SugarColorIndicator" class="inline-block w-4 h-4 bg-amber-800 rounded-full mr-1 cursor-pointer"></span>
+                            <span>链1 - 五碳糖</span>
+                        </div>
+                        <input type="color" id="strand1SugarColorPicker" value="#8B4513" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="strand1PhosphodiesterColorIndicator" class="inline-block w-4 h-4 bg-white rounded-full mr-1 cursor-pointer"></span>
+                            <span>链1 - 磷酸二脂键</span>
+                        </div>
+                        <input type="color" id="strand1PhosphodiesterColorPicker" value="#FFFFFF" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- 链2颜色控制 -->
+            <div class="mb-3">
+                <h4 class="text-xs font-semibold mb-2 text-blue-300">链2颜色（3'→5'方向）</h4>
+                <ul class="text-xs space-y-2 text-gray-300">
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="strand2PhosphateColorIndicator" class="inline-block w-4 h-4 bg-blue-700 rounded-full mr-1 cursor-pointer"></span>
+                            <span>链2 - 磷酸基团</span>
+                        </div>
+                        <input type="color" id="strand2PhosphateColorPicker" value="#2563EB" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="strand2SugarColorIndicator" class="inline-block w-4 h-4 bg-blue-900 rounded-full mr-1 cursor-pointer"></span>
+                            <span>链2 - 五碳糖</span>
+                        </div>
+                        <input type="color" id="strand2SugarColorPicker" value="#1E40AF" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="strand2PhosphodiesterColorIndicator" class="inline-block w-4 h-4 bg-blue-200 rounded-full mr-1 cursor-pointer"></span>
+                            <span>链2 - 磷酸二脂键</span>
+                        </div>
+                        <input type="color" id="strand2PhosphodiesterColorPicker" value="#B3C5E6" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- 通用颜色控制（碱基和氢键） -->
+            <div>
+                <h4 class="text-xs font-semibold mb-2 text-gray-400">通用颜色（所有链共享）</h4>
+                <ul class="text-xs space-y-2 text-gray-300">
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="adenineColorIndicator" class="inline-block w-4 h-4 bg-blue-600 rounded-full mr-1 cursor-pointer"></span>
+                            <span>"A" - 腺嘌呤</span>
+                        </div>
+                        <input type="color" id="adenineColorPicker" value="#0000FF" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="thymineColorIndicator" class="inline-block w-4 h-4 bg-red-600 rounded-full mr-1 cursor-pointer"></span>
+                            <span>"T" - 胸腺嘧啶</span>
+                        </div>
+                        <input type="color" id="thymineColorPicker" value="#FF0000" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="cytosineColorIndicator" class="inline-block w-4 h-4 bg-green-600 rounded-full mr-1 cursor-pointer"></span>
+                            <span>"C" - 胞嘧啶</span>
+                        </div>
+                        <input type="color" id="cytosineColorPicker" value="#00FF00" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="guanineColorIndicator" class="inline-block w-4 h-4 bg-yellow-400 rounded-full mr-1 cursor-pointer"></span>
+                            <span>"G" - 鸟嘌呤</span>
+                        </div>
+                        <input type="color" id="guanineColorPicker" value="#FFFF00" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="hydrogenColorIndicator" class="inline-block w-4 h-4 bg-cyan-300 rounded-full mr-1 cursor-pointer"></span>
+                            <span>氢键</span>
+                        </div>
+                        <input type="color" id="hydrogenColorPicker" value="#A5F3FC" 
+                               class="w-6 h-6 p-0 border-none rounded-full cursor-pointer">
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 3D渲染区域 -->
+    <div class="model-container flex-1 relative bg-gray-900" id="canvasContainer">
+        <canvas id="dnaCanvas" class="w-full h-full"></canvas>
+        <!-- 右上角图片 -->
+        <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEDs3Bo-eHKcvmtdjKdaSVgjJ61L3BncgAC-R8AAlO7yFegEP15ks97ijYE.png" 
+              class="absolute top-4 right-4 w-16 h-auto opacity-70 z-10" 
+              alt="DNA参考图">
+        <div id="loader" class="absolute inset-0 flex items-center justify-center bg-gray-900/95 z-20">
+            <div class="text-center">
+                <div class="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                <p>正在构建DNA模型...</p>
+            </div>
+        </div>
+        <!-- 滚动文字说明 -->
+        <div class="absolute bottom-4 right-4 z-10 bg-black/70 text-white px-4 py-2 rounded-full text-xs overflow-hidden whitespace-nowrap">
+            <div class="marquee-text animate-marquee">磷酸二酯键是指一个磷酸分子与两个核苷酸的羟基（3'—OH和5'—OH）之间形成的共价键。此处模型由于AI技术暂时难以实现，特此说明。</div>
+        </div>
+    </div>
+
+    <script>
+        // 默认颜色配置（用于颜色恢复功能）
+        const DEFAULT_COLORS = {
+            // 链1颜色
+            strand1: {
+                phosphate: 0x9333EA,
+                sugar: 0x8B4513,
+                phosphodiester: 0xFFFFFF
+            },
+            // 链2颜色
+            strand2: {
+                phosphate: 0x2563EB,
+                sugar: 0x1E40AF,
+                phosphodiester: 0xB3C5E6
+            },
+            // 通用颜色（碱基和氢键）
+            adenine: 0x0000FF,
+            thymine: 0xFF0000,
+            cytosine: 0x00FF00,
+            guanine: 0xFFFF00,
+            hydrogen: 0xA5F3FC
+        };
+
+        // 配置参数
+        const config = {
+            nucleotideCount: 12,
+            dnaRadius: 4.5,
+            stepHeight: 1.8,
+            rotationSpeed: 0.003,
+            reverseRotation: false,
+            show: {
+                sugars: true,
+                phosphates: true,
+                bases: true,
+                phosBonds: true,
+                hydroBonds: true,
+                labels: true  // 新增：控制字母标识显示
+            },
+            colors: JSON.parse(JSON.stringify(DEFAULT_COLORS)) // 深拷贝默认颜色作为初始配置
+        };
+        
+        // Three.js核心对象
+        let scene, camera, renderer, controls;
+        let dnaGroup;
+        let strand1, strand2, hydroBondsGroup;
+        // 新增：存储标签以便控制可见性
+        let labels = [];
+        // 新增：射线检测和交互相关
+        let raycaster, mouse;
+        let hoveredBase = null;
+        let baseObjects = [];
+        
+        // 更新状态显示
+        function updateStatus(text) {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `
+                <p class="text-sm font-medium flex items-center">
+                    <i class="fa fa-circle-o-notch fa-spin mr-2"></i>
+                    <span>${text}</span>
+                </p>
+            `;
+        }
+        
+        // 恢复默认颜色功能 - 实时更新版本
+        function resetColorsToDefault() {
+            // 深拷贝默认颜色到配置对象
+            config.colors = JSON.parse(JSON.stringify(DEFAULT_COLORS));
+            
+            // 更新颜色选择器的值
+            // 链1颜色选择器
+            document.getElementById('strand1PhosphateColorPicker').value = '#9333EA';
+            document.getElementById('strand1SugarColorPicker').value = '#8B4513';
+            document.getElementById('strand1PhosphodiesterColorPicker').value = '#FFFFFF';
+            
+            // 链2颜色选择器
+            document.getElementById('strand2PhosphateColorPicker').value = '#2563EB';
+            document.getElementById('strand2SugarColorPicker').value = '#1E40AF';
+            document.getElementById('strand2PhosphodiesterColorPicker').value = '#B3C5E6';
+            
+            // 通用颜色选择器
+            document.getElementById('adenineColorPicker').value = '#0000FF';
+            document.getElementById('thymineColorPicker').value = '#FF0000';
+            document.getElementById('cytosineColorPicker').value = '#00FF00';
+            document.getElementById('guanineColorPicker').value = '#FFFF00';
+            document.getElementById('hydrogenColorPicker').value = '#A5F3FC';
+            
+            // 更新颜色指示器
+            document.getElementById('strand1PhosphateColorIndicator').style.backgroundColor = '#9333EA';
+            document.getElementById('strand1SugarColorIndicator').style.backgroundColor = '#8B4513';
+            document.getElementById('strand1PhosphodiesterColorIndicator').style.backgroundColor = '#FFFFFF';
+            
+            document.getElementById('strand2PhosphateColorIndicator').style.backgroundColor = '#2563EB';
+            document.getElementById('strand2SugarColorIndicator').style.backgroundColor = '#1E40AF';
+            document.getElementById('strand2PhosphodiesterColorIndicator').style.backgroundColor = '#B3C5E6';
+            
+            document.getElementById('adenineColorIndicator').style.backgroundColor = '#0000FF';
+            document.getElementById('thymineColorIndicator').style.backgroundColor = '#FF0000';
+            document.getElementById('cytosineColorIndicator').style.backgroundColor = '#00FF00';
+            document.getElementById('guanineColorIndicator').style.backgroundColor = '#FFFF00';
+            document.getElementById('hydrogenColorIndicator').style.backgroundColor = '#A5F3FC';
+            
+            // 实时更新所有组件颜色，不需要重建模型
+            updateAllComponentColors();
+            
+            // 对五碳糖进行额外的实时更新处理，确保所有相关对象都被更新
+            const updateSugarsInRealTime = () => {
+                // 处理链1的五碳糖
+                (function updateStrand1Sugars() {
+                    const hexColor = parseInt('#8B4513'.replace('#', '0x'), 16);
+                    
+                    function traverse(obj) {
+                        if (obj && obj.userData && obj.userData.strand === 1) {
+                            // 检查是否是数字标签（避免更新标签颜色）
+                            const isLabel = obj.userData.type === 'label' && /^[1-5]$/.test(obj.userData.content);
+                            // 检查是否是碳原子
+                            const isCarbonAtom = obj.userData.type === 'atom' && obj.userData.atomType?.startsWith('C');
+                            
+                            const isSugarRelated = 
+                                obj.userData.type === 'sugar' ||
+                                obj.userData.sugarComponent ||
+                                isCarbonAtom ||
+                                (obj.parent?.userData?.type === 'sugar') ||
+                                (obj.parent?.userData?.atomType?.startsWith('C'));
+                                  
+                            if (isSugarRelated && obj.material) {
+                                if (isLabel) {
+                                    // 对于数字标签，确保它保持白色
+                                    obj.material.color.set(0xFFFFFF);
+                                } else if (isCarbonAtom) {
+                                    // 对于碳原子，确保它保持黑色
+                                    obj.material.color.set(0x000000);
+                                } else {
+                                    // 对于非标签非碳原子对象，使用指定颜色
+                                    obj.material.color.set(hexColor);
+                                }
+                                obj.material.needsUpdate = true;
+                            }
+                        }
+                        
+                        if (obj && obj.children) {
+                            obj.children.forEach(child => traverse(child));
+                        }
+                    }
+                    
+                    // 从两个根对象开始遍历，确保所有五碳糖相关对象都被更新
+                    traverse(scene);
+                    traverse(dnaGroup);
+                })();
+                
+                // 处理链2的五碳糖
+                (function updateStrand2Sugars() {
+                    const hexColor = parseInt('#1E40AF'.replace('#', '0x'), 16);
+                    
+                    function traverse(obj) {
+                        if (obj && obj.userData && obj.userData.strand === 2) {
+                            // 检查是否是数字标签（避免更新标签颜色）
+                            const isLabel = obj.userData.type === 'label' && /^[1-5]$/.test(obj.userData.content);
+                            // 检查是否是碳原子
+                            const isCarbonAtom = obj.userData.type === 'atom' && obj.userData.atomType?.startsWith('C');
+                            
+                            const isSugarRelated = 
+                                obj.userData.type === 'sugar' ||
+                                obj.userData.sugarComponent ||
+                                isCarbonAtom ||
+                                (obj.parent?.userData?.type === 'sugar') ||
+                                (obj.parent?.userData?.atomType?.startsWith('C'));
+                                  
+                            if (isSugarRelated && obj.material) {
+                                if (isLabel) {
+                                    // 对于数字标签，确保它保持白色
+                                    obj.material.color.set(0xFFFFFF);
+                                } else if (isCarbonAtom) {
+                                    // 对于碳原子，确保它保持黑色
+                                    obj.material.color.set(0x000000);
+                                } else {
+                                    // 对于非标签非碳原子对象，使用指定颜色
+                                    obj.material.color.set(hexColor);
+                                }
+                                obj.material.needsUpdate = true;
+                            }
+                        }
+                        
+                        if (obj && obj.children) {
+                            obj.children.forEach(child => traverse(child));
+                        }
+                    }
+                    
+                    traverse(scene);
+                    traverse(dnaGroup);
+                })();
+            };
+            
+            // 调用五碳糖实时更新函数
+            updateSugarsInRealTime();
+            
+            // 更新状态显示
+            updateStatus('已实时恢复默认颜色设置');
+            setTimeout(() => updateStatus('DNA模型已准备就绪'), 1000);
+        }
+        
+        // 新增：创建文字标签的函数
+        function createTextLabel(text, color = 0xffffff, size = 1) {
+            // 创建Canvas纹理
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 64;
+            canvas.height = 64;
+            
+            // 绘制文字
+            context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+            context.font = `bold ${32}px Arial`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, canvas.width / 2, canvas.height / 2);
+            
+            // 创建纹理和材质
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ 
+                map: texture,
+                transparent: true
+            });
+            
+            // 创建精灵并设置大小
+            const label = new THREE.Sprite(material);
+            label.scale.set(size, size, 1);
+            
+            // 确保每个标签都有基本的userData
+            label.userData = {
+                type: 'label',
+                content: text
+            };
+            
+            // 存储标签引用以便后续控制
+            labels.push(label);
+            
+            return label;
+        }
+        
+        // 初始化场景
+        function initScene() {
+            // 创建场景
+            scene = new THREE.Scene();
+            
+            // 根据用户主题偏好设置初始背景色
+            const savedTheme = localStorage.getItem('dnaModelTheme');
+            const isLightTheme = savedTheme === 'light';
+            scene.background = new THREE.Color(isLightTheme ? 0xffffff : 0x0a0a16);
+            
+            // 创建相机
+            const container = document.getElementById('canvasContainer');
+            camera = new THREE.PerspectiveCamera(
+                75, 
+                container.clientWidth / container.clientHeight, 
+                0.1, 
+                500
+            );
+            camera.position.set(0, 0, 30);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('dnaCanvas'),
+                antialias: true
+            });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // 添加光源
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.set(15, 20, 25);
+            scene.add(dirLight);
+            
+            // 添加控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // 创建DNA组
+            dnaGroup = new THREE.Group();
+            scene.add(dnaGroup);
+            
+            // 初始化链和氢键组
+            strand1 = new THREE.Group();  // 5'→3'链
+            strand2 = new THREE.Group();  // 3'→5'链（反向平行）
+            hydroBondsGroup = new THREE.Group();
+            
+            dnaGroup.add(strand1, strand2, hydroBondsGroup);
+            
+            // 初始化射线检测
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // 添加鼠标移动事件监听器
+            document.getElementById('canvasContainer').addEventListener('mousemove', onMouseMove);
+            
+            // 窗口大小调整
+            window.addEventListener('resize', () => {
+                const container = document.getElementById('canvasContainer');
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+        
+        // 创建五边形几何体来表示五碳糖
+        function createPentagonGeometry(radius = 0.4, height = 0.3, strand = 1) {
+            // 创建一个组来包含五边形和原子标记
+            const group = new THREE.Group();
+            
+            // 创建五边形形状
+            const pentagonShape = new THREE.Shape();
+            
+            // 存储五边形的顶点位置
+            const vertices = [];
+            const vertexCount = 5;
+            
+            // 计算并存储五边形的5个顶点（根据脱氧核苷酸图片结构）
+            // 按照图片结构：顶部是O，左边是C5，右边是C1
+            // 调整角度，确保正确的原子排列
+            for (let i = 0; i < vertexCount; i++) {
+                // 调整角度计算，确保顶部是O，然后顺时针排列
+                const angle = -((i / vertexCount) * Math.PI * 2) - Math.PI / 2;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                vertices.push({ x, y });
+                
+                if (i === 0) {
+                    pentagonShape.moveTo(x, y);
+                } else {
+                    pentagonShape.lineTo(x, y);
+                }
+            }
+            
+            // 闭合形状
+            pentagonShape.closePath();
+            
+            // 挤压选项
+            const extrudeSettings = {
+                depth: height,
+                bevelEnabled: true,
+                bevelThickness: 0.05,
+                bevelSize: 0.02,
+                bevelSegments: 1
+            };
+            
+            // 创建挤压几何体
+            const pentagonGeometry = new THREE.ExtrudeGeometry(pentagonShape, extrudeSettings);
+            
+            // 更新法线以确保正确的光照
+            pentagonGeometry.computeVertexNormals();
+            
+            // 根据链ID选择颜色
+            const sugarColor = strand === 1 ? config.colors.strand1.sugar : config.colors.strand2.sugar;
+            
+            // 创建五边形网格
+            const pentagonMaterial = new THREE.MeshPhongMaterial({ color: sugarColor });
+            const pentagonMesh = new THREE.Mesh(pentagonGeometry, pentagonMaterial);
+            // 为五边形网格添加链ID和类型标识
+            pentagonMesh.userData.strand = strand;
+            pentagonMesh.userData.type = 'sugar';
+            group.add(pentagonMesh);
+            
+            // 原子类型定义：按照反方向重新定义碳原子编号
+            // 顶部是O，然后逆时针方向排列：O -> C1 -> C2 -> C3 -> C4，C5在侧链上
+            const atomTypes = ['O', 'C1', 'C2', 'C3', 'C4'];
+            
+            // 为每个顶点添加原子标记
+            vertices.forEach((vertex, index) => {
+                // 确定原子颜色：氧原子用淡蓝色，碳原子始终用黑色
+                let atomColor;
+                if (index === 0) { // 氧原子
+                    atomColor = config.colors.hydroBond;
+                } else { // 碳原子 - 始终使用黑色
+                    atomColor = 0x000000; // 黑色
+                }
+                
+                // 创建原子球体
+                const atomGeometry = new THREE.SphereGeometry(0.08, 12, 12);
+                const atomMaterial = new THREE.MeshPhongMaterial({ color: atomColor });
+                const atom = new THREE.Mesh(atomGeometry, atomMaterial);
+                
+                // 设置原子位置（在五边形的平面上，略微偏移以便可见）
+                atom.position.set(vertex.x, vertex.y, height / 2 + 0.05);
+                
+                // 添加用户数据以标识原子类型和链ID
+                // 反方向编号：顶点1 -> C4, 顶点2 -> C3, 顶点3 -> C2, 顶点4 -> C1
+                let atomType = atomTypes[index];
+                if (index > 0) {
+                    const reverseIndex = 5 - index;
+                    atomType = `C${reverseIndex}`;
+                }
+                atom.userData = { type: 'atom', atomType: atomType, strand: strand };
+                
+                group.add(atom);
+                
+                // 为碳原子添加数字标签（C1-C4）
+                    if (index > 0) { // 跳过氧原子
+                        // 反方向标记：按照顶点顺序反向编号
+                        // 顶点1 -> C4, 顶点2 -> C3, 顶点3 -> C2, 顶点4 -> C1
+                        const carbonNumber = 5 - index; // 反向编号
+                        const carbonLabel = createTextLabel(carbonNumber.toString(), 0xFFFFFF, 0.6);
+                        carbonLabel.position.set(vertex.x, vertex.y, height / 2 + 0.05).add(new THREE.Vector3(0, 0.2, 0));
+                        carbonLabel.visible = config.show.labels;
+                        carbonLabel.userData = { type: 'label', content: carbonNumber.toString(), strand: strand, sugarComponent: true };
+                        group.add(carbonLabel);
+                    }
+            });
+            
+            // 添加第5号碳（C5）在外面，位于磷酸基团旁
+            // 计算C5的位置：更靠近磷酸基团方向，远离氧原子
+            const c1Pos = vertices[1]; // C1的位置
+            const c4Pos = vertices[4]; // C4的位置，更靠近磷酸基团方向
+            
+            // 计算从C1到C4的方向向量（更靠近磷酸基团方向）
+            const directionX = c4Pos.x - c1Pos.x;
+            const directionY = c4Pos.y - c1Pos.y;
+            const length = Math.sqrt(directionX * directionX + directionY * directionY);
+            const normalizedDirX = directionX / length;
+            const normalizedDirY = directionY / length;
+            
+            // 从C1位置向C4方向偏移一定距离，再向外延伸，让C5更靠近磷酸基团并远离五碳糖
+            const c5X = c1Pos.x + normalizedDirX * radius * 1.5 + directionY * radius * 0.6; // 增加偏移距离，使C5原子远离五碳糖
+            const c5Y = c1Pos.y + normalizedDirY * radius * 1.5 - directionX * radius * 0.6;
+            
+
+            
+            // 存储原子位置信息，供外部使用 - 按照反方向重新定义碳原子编号
+            group.userData.atoms = {
+                O: { x: vertices[0].x, y: vertices[0].y, z: height / 2 + 0.05 },
+                C4: { x: vertices[1].x, y: vertices[1].y, z: height / 2 + 0.05 },
+                C3: { x: vertices[2].x, y: vertices[2].y, z: height / 2 + 0.05 },
+                C2: { x: vertices[3].x, y: vertices[3].y, z: height / 2 + 0.05 },
+                C1: { x: vertices[4].x, y: vertices[4].y, z: height / 2 + 0.05 }
+            };
+            
+            // 设置链ID和类型，用于颜色更新
+            group.userData.strand = strand;
+            group.userData.type = 'sugar';
+            
+            return group;
+        }
+
+        // 创建DNA模型（带字母标识版本）
+        function createDNA() {
+            // 清除现有内容
+            strand1.clear();
+            strand2.clear();
+            hydroBondsGroup.clear();
+            // 清除现有标签
+            labels.forEach(label => scene.remove(label));
+            labels = [];
+            // 清除碱基对象数组，准备重建模型
+            baseObjects = [];
+            
+            // 创建每个核苷酸对
+            for (let i = 0; i < config.nucleotideCount; i++) {
+                addNucleotidePair(i);
+            }
+            
+            // 调整DNA模型居中显示
+            // 计算模型的总高度
+            const totalHeight = config.nucleotideCount * config.stepHeight;
+            // 将DNA组的位置向上移动一半高度，使模型中心位于原点上方
+            dnaGroup.position.y = -totalHeight / 2;
+            
+            // 隐藏加载界面
+            document.getElementById('loader').classList.add('hidden');
+            updateStatus("DNA模型就绪");
+        }
+        // 添加单个核苷酸对
+        function addNucleotidePair(index) {
+            const radius = config.dnaRadius;
+            const heightStep = config.stepHeight;
+            
+            // 计算螺旋角度
+            const angle = (index * 0.628) % (Math.PI * 2); // 约36度
+            const yPos = index * heightStep;
+            
+            // 链1位置（5'→3'方向）
+            const x1 = Math.cos(angle) * radius;
+            const z1 = Math.sin(angle) * radius;
+            
+            // 链2位置（3'→5'方向，反向平行）
+            const x2 = Math.cos(angle + Math.PI) * radius;
+            const z2 = Math.sin(angle + Math.PI) * radius;
+            
+            // 确定碱基类型
+            const isATPair = index % 2 === 0;
+            const base1Type = isATPair ? 'A' : 'C';
+            const base2Type = isATPair ? 'T' : 'G';
+            
+            // 创建链1的核苷酸组件
+            // 1. 五碳糖（脱氧核糖）- 五边形形状表示4个碳和一个氧原子
+            const sugar1 = createPentagonGeometry(0.4, 0.3, 1);
+            // 设置旋转：确保2号碳和碱基连接，4号碳和磷酸基团方向一致，并且所有五碳糖旋转180度
+            // 建模信息：五碳糖顶点排列为O(蓝色)在顶部，顺时针为O→C1→C2→C3→C4
+            sugar1.rotation.x = Math.PI / 2; // 使平面垂直于链的方向
+            sugar1.rotation.z = angle + Math.PI; // 调整旋转使C2朝向碱基，C4朝向磷酸基团，并旋转180度
+            sugar1.rotation.y = 0; // 保持正确的方向
+            sugar1.position.set(x1, yPos, z1);
+            sugar1.visible = config.show.sugars;
+            sugar1.userData = { type: 'sugar', index: index, strand: 1 };
+            strand1.add(sugar1);
+            
+            // 2. 磷酸基团 + "P"标识 - 减小尺寸并调整位置避免与五碳糖重叠
+            const phosphate1 = new THREE.Mesh(
+                new THREE.SphereGeometry(0.3, 12, 12), // 减小半径从0.4到0.3
+                new THREE.MeshPhongMaterial({ color: config.colors.strand1.phosphate })
+            );
+            const phosphate1Pos = new THREE.Vector3(
+                x1 + Math.cos(angle) * 1.2, // 增加偏移距离从0.9到1.2，使磷酸基团远离五碳糖
+                yPos - 0.2, // 向下移动0.2
+                z1 + Math.sin(angle) * 1.2
+            );
+            phosphate1.position.copy(phosphate1Pos);
+            phosphate1.visible = config.show.phosphates;
+            phosphate1.userData = { type: 'phosphate', index: index, strand: 1 };
+            strand1.add(phosphate1);
+            
+            // 3. 创建连接4号碳和磷酸基团的化学键
+            if (config.show.sugars && config.show.phosphates && config.show.phosBonds) {
+                try {
+                    // 简化方式：使用五碳糖和磷酸基团之间的中点位置创建化学键
+                    // 不直接计算C4原子位置，避免复杂的旋转计算错误
+                    const bondDirection = new THREE.Vector3()
+                        .subVectors(phosphate1Pos, sugar1.position)
+                        .normalize();
+                    
+                    // 从五碳糖中心向磷酸基团方向偏移一定距离作为起点，并向下移动
+                    const bondStart = new THREE.Vector3()
+                        .copy(sugar1.position)
+                        .add(bondDirection.clone().multiplyScalar(0.7)) // 增加偏移距离从0.5到0.7，使化学键起点远离五碳糖
+                        .add(new THREE.Vector3(0, -0.1, 0)); // 向下移动0.1（相对上移了0.1）
+                    
+                    // 从磷酸基团中心向五碳糖方向偏移一定距离作为终点
+                    const bondEnd = new THREE.Vector3()
+                        .copy(phosphate1Pos)
+                        .add(bondDirection.clone().multiplyScalar(-0.2));
+                    
+                    const bondLength = bondEnd.distanceTo(bondStart);
+                    
+                    const bond = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, bondLength, 12),
+                new THREE.MeshPhongMaterial({ color: config.colors.phosBond })
+            );
+                    
+                    // 设置位置和旋转
+                    bond.position.addVectors(bondStart, bondEnd).multiplyScalar(0.5);
+                    
+                    // 计算方向并设置旋转
+                    const direction = new THREE.Vector3().subVectors(bondEnd, bondStart).normalize();
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const axis = new THREE.Vector3().crossVectors(up, direction).normalize();
+                    const angle = Math.acos(up.dot(direction));
+                    bond.quaternion.setFromAxisAngle(axis, angle);
+                    
+                    bond.visible = true;
+                    bond.userData = { 
+                        type: 'c4-phosphate-bond', 
+                        index: index, 
+                        strand: 1,
+                        originalColor: config.colors.phosBond, // 保存原始颜色以便恢复
+                        originalScale: new THREE.Vector3(1, 1, 1) // 保存原始大小
+                    };
+                    strand1.add(bond);
+                    
+                    // 在化学键另一端（碳端）添加5号碳原子表示
+                    const carbonAtomGeometry = new THREE.SphereGeometry(0.08, 12, 12);
+                    const carbonAtomMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 }); // 黑色表示碳原子
+                    const carbonAtom = new THREE.Mesh(carbonAtomGeometry, carbonAtomMaterial);
+                    carbonAtom.position.copy(bondStart);
+                    carbonAtom.userData = { type: 'atom', atomType: 'C5', index: index, strand: 1 };
+                    strand1.add(carbonAtom);
+                    
+                    // 添加连接C4和C5的化学键
+                    try {
+                        // 获取C4原子的局部坐标
+                        const c4Local = new THREE.Vector3(
+                            sugar1.userData.atoms.C4.x,
+                            sugar1.userData.atoms.C4.y,
+                            sugar1.userData.atoms.C4.z
+                        );
+                        
+                        // 计算C4原子的世界坐标
+                        const c4World = sugar1.localToWorld(c4Local.clone());
+                        
+                        // 创建C4-C5化学键
+                        const c4c5Direction = new THREE.Vector3().subVectors(bondStart, c4World).normalize();
+                        const c4c5Length = bondStart.distanceTo(c4World);
+                        
+                        const c4c5Bond = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.03, 0.03, c4c5Length, 12),
+                            new THREE.MeshPhongMaterial({ color: config.colors.phosBond })
+                        );
+                        
+                        // 设置位置和旋转
+                        c4c5Bond.position.addVectors(c4World, bondStart).multiplyScalar(0.5);
+                        
+                        const up = new THREE.Vector3(0, 1, 0);
+                        const axis = new THREE.Vector3().crossVectors(up, c4c5Direction).normalize();
+                        const bondAngle = Math.acos(up.dot(c4c5Direction));
+                        c4c5Bond.quaternion.setFromAxisAngle(axis, bondAngle);
+                        
+                        c4c5Bond.visible = config.show.sugars && config.show.phosBonds;
+                        c4c5Bond.userData = { 
+                            type: 'c4-c5-bond', 
+                            index: index, 
+                            strand: 1,
+                            originalColor: config.colors.phosBond, // 保存原始颜色以便恢复
+                            originalScale: new THREE.Vector3(1, 1, 1) // 保存原始大小
+                        };
+                        strand1.add(c4c5Bond);
+                    } catch (e) {
+                        console.error('创建链1 C4-C5键时出错:', e);
+                    }
+                    
+                    // 添加连接C4和C5的化学键
+                    try {
+                        // 获取C4原子的局部坐标
+                        const c4Local = new THREE.Vector3(
+                            sugar2.userData.atoms.C4.x,
+                            sugar2.userData.atoms.C4.y,
+                            sugar2.userData.atoms.C4.z
+                        );
+                        
+                        // 计算C4原子的世界坐标
+                        const c4World = sugar2.localToWorld(c4Local.clone());
+                        
+                        // 创建C4-C5化学键
+                        const c4c5Direction = new THREE.Vector3().subVectors(bondStart, c4World).normalize();
+                        const c4c5Length = bondStart.distanceTo(c4World);
+                        
+                        const c4c5Bond = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.03, 0.03, c4c5Length, 12),
+                            new THREE.MeshPhongMaterial({ color: config.colors.phosBond })
+                        );
+                        
+                        // 设置位置和旋转
+                        c4c5Bond.position.addVectors(c4World, bondStart).multiplyScalar(0.5);
+                        
+                        const up = new THREE.Vector3(0, 1, 0);
+                        const axis = new THREE.Vector3().crossVectors(up, c4c5Direction).normalize();
+                        const bondAngle = Math.acos(up.dot(c4c5Direction));
+                        c4c5Bond.quaternion.setFromAxisAngle(axis, bondAngle);
+                        
+                        c4c5Bond.visible = config.show.sugars && config.show.phosBonds;
+                        c4c5Bond.userData = { 
+                            type: 'c4-c5-bond', 
+                            index: index, 
+                            strand: 2,
+                            originalColor: config.colors.phosBond, // 保存原始颜色以便恢复
+                            originalScale: new THREE.Vector3(1, 1, 1) // 保存原始大小
+                        };
+                        strand2.add(c4c5Bond);
+                    } catch (e) {
+                        console.error('创建链2 C4-C5键时出错:', e);
+                    }
+                    
+                    // 为5号碳原子添加"5"标签
+                    const c5Label = createTextLabel("5", 0xFFFFFF, 0.6);
+                    c5Label.position.copy(bondStart).add(new THREE.Vector3(0, 0.3, 0));
+                    c5Label.visible = config.show.labels;
+                    c5Label.userData = { type: 'label', content: '5', index: index, strand: 1 };
+                    strand1.add(c5Label);
+                } catch (e) {
+                    console.error('创建链1 C4-磷酸键时出错:', e);
+                }
+            }
+            
+            // 新增：磷酸基团的"P"标签
+            const pLabel1 = createTextLabel("P", 0xFFFFFF, 0.6);
+            pLabel1.position.copy(phosphate1Pos).add(new THREE.Vector3(0, 0.5, 0));
+            pLabel1.visible = config.show.labels && config.show.phosphates;
+            pLabel1.userData = { type: 'label', content: 'P', index: index, strand: 1 };
+            strand1.add(pLabel1);
+            
+            // 3. 碱基 + 字母标识
+            const base1Color = base1Type === 'A' ? config.colors.adenine : config.colors.cytosine;
+            const base1 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.4), // 使用长方体代替圆柱体，缩短长度
+                new THREE.MeshPhongMaterial({ color: base1Color })
+            );
+            // 进一步增加偏移距离，彻底避免与五碳糖重叠
+            const base1Pos = new THREE.Vector3(
+                x1 - Math.cos(angle) * 1.0, 
+                yPos, 
+                z1 - Math.sin(angle) * 1.0
+            );
+            base1.position.copy(base1Pos);
+            base1.rotation.z = Math.PI / 2;
+            base1.visible = config.show.bases;
+            base1.userData = { type: 'base', baseType: base1Type, index: index, strand: 1 };
+            // 保存原始颜色和大小以便高亮效果
+            base1.userData.originalColor = base1Color;
+            base1.userData.originalScale = new THREE.Vector3(1, 1, 1);
+            // 将碱基添加到跟踪数组
+            baseObjects.push(base1);
+            strand1.add(base1);
+            
+            // 添加连接碱基和1号碳的化学键
+            if (config.show.sugars && config.show.bases) {
+                try {
+                    // 获取C1原子的局部坐标
+                    const c1Local = new THREE.Vector3(
+                        sugar1.userData.atoms.C1.x,
+                        sugar1.userData.atoms.C1.y,
+                        sugar1.userData.atoms.C1.z
+                    );
+                    
+                    // 计算C1原子的世界坐标
+                    const c1World = sugar1.localToWorld(c1Local.clone());
+                    
+                    // 创建碱基-1号碳化学键
+                    const baseC1Direction = new THREE.Vector3().subVectors(base1Pos, c1World).normalize();
+                    // 稍微调整方向，使化学键连接到碱基的合适位置
+                    const adjustedC1Pos = c1World.clone().add(baseC1Direction.clone().multiplyScalar(0.1));
+                    const adjustedBasePos = base1Pos.clone().add(baseC1Direction.clone().multiplyScalar(-0.1));
+                    const baseC1Length = adjustedBasePos.distanceTo(adjustedC1Pos);
+                    
+                    const baseC1Bond = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.03, 0.03, baseC1Length, 12),
+                        new THREE.MeshPhongMaterial({ color: config.colors.phosBond })
+                    );
+                    
+                    // 设置位置和旋转
+                    baseC1Bond.position.addVectors(adjustedC1Pos, adjustedBasePos).multiplyScalar(0.5);
+                    
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const axis = new THREE.Vector3().crossVectors(up, baseC1Direction).normalize();
+                    const bondAngle = Math.acos(up.dot(baseC1Direction));
+                    baseC1Bond.quaternion.setFromAxisAngle(axis, bondAngle);
+                    
+                    baseC1Bond.visible = true;
+                    baseC1Bond.userData = { 
+                        type: 'base-c1-bond', 
+                        index: index, 
+                        strand: 1,
+                        originalColor: config.colors.phosBond,
+                        originalScale: new THREE.Vector3(1, 1, 1)
+                    };
+                    strand1.add(baseC1Bond);
+                } catch (e) {
+                    console.error('创建链1碱基-C1键时出错:', e);
+                }
+            }
+            
+            // 新增：碱基的字母标签
+            const base1Label = createTextLabel(
+                base1Type, 
+                0xFFFFFF, // 所有碱基标签都用白色
+                0.6
+            );
+            base1Label.position.copy(base1Pos).add(new THREE.Vector3(0, 0.5, 0));
+            base1Label.visible = config.show.labels && config.show.bases;
+            base1Label.userData = { type: 'label', content: base1Type, index: index, strand: 1 };
+            strand1.add(base1Label);
+            
+            // 创建链2的核苷酸组件
+            // 1. 五碳糖（脱氧核糖）
+            const sugar2 = createPentagonGeometry(0.4, 0.3, 2);
+            // 设置旋转：确保2号碳和碱基连接，4号碳和磷酸基团方向一致，并且所有五碳糖旋转180度
+            // 建模信息：五碳糖顶点排列为O(蓝色)在顶部，顺时针为O→C1→C2→C3→C4
+            sugar2.rotation.x = Math.PI / 2; // 使平面垂直于链的方向
+            sugar2.rotation.z = angle + Math.PI + Math.PI; // 调整旋转使C2朝向碱基，C4朝向磷酸基团，并旋转180度
+            sugar2.rotation.y = 0; // 保持正确的方向
+            sugar2.position.set(x2, yPos, z2);
+            sugar2.visible = config.show.sugars;
+            sugar2.userData = { type: 'sugar', index: index, strand: 2 };
+            strand2.add(sugar2);
+            
+            // 2. 磷酸基团 + "P"标识 - 减小尺寸并调整位置避免与五碳糖重叠
+            const phosphate2 = new THREE.Mesh(
+                new THREE.SphereGeometry(0.3, 12, 12), // 减小半径从0.4到0.3
+                new THREE.MeshPhongMaterial({ color: config.colors.strand2.phosphate })
+            );
+            const phosphate2Pos = new THREE.Vector3(
+                x2 + Math.cos(angle + Math.PI) * 1.2, // 增加偏移距离从0.9到1.2，使磷酸基团远离五碳糖
+                yPos - 0.2, // 向下移动0.2
+                z2 + Math.sin(angle + Math.PI) * 1.2
+            );
+            phosphate2.position.copy(phosphate2Pos);
+            phosphate2.visible = config.show.phosphates;
+            phosphate2.userData = { type: 'phosphate', index: index, strand: 2 };
+            strand2.add(phosphate2);
+            
+            // 3. 创建连接4号碳和磷酸基团的化学键
+            if (config.show.sugars && config.show.phosphates && config.show.phosBonds) {
+                try {
+                    // 简化方式：使用五碳糖和磷酸基团之间的中点位置创建化学键
+                    // 不直接计算C4原子位置，避免复杂的旋转计算错误
+                    const bondDirection = new THREE.Vector3()
+                        .subVectors(phosphate2Pos, sugar2.position)
+                        .normalize();
+                    
+                    // 从五碳糖中心向磷酸基团方向偏移一定距离作为起点，并向下移动
+                    const bondStart = new THREE.Vector3()
+                        .copy(sugar2.position)
+                        .add(bondDirection.clone().multiplyScalar(0.7)) // 增加偏移距离从0.5到0.7，使化学键起点远离五碳糖
+                        .add(new THREE.Vector3(0, -0.1, 0)); // 向下移动0.1（相对上移了0.1）
+                    
+                    // 从磷酸基团中心向五碳糖方向偏移一定距离作为终点
+                    const bondEnd = new THREE.Vector3()
+                        .copy(phosphate2Pos)
+                        .add(bondDirection.clone().multiplyScalar(-0.2));
+                    
+                    const bondLength = bondEnd.distanceTo(bondStart);
+                    
+                    const bond = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.03, 0.03, bondLength, 12),
+                        new THREE.MeshPhongMaterial({ color: config.colors.phosBond })
+                    );
+                    
+                    // 设置位置和旋转
+                    bond.position.addVectors(bondStart, bondEnd).multiplyScalar(0.5);
+                    
+                    // 计算方向并设置旋转
+                    const direction = new THREE.Vector3().subVectors(bondEnd, bondStart).normalize();
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const axis = new THREE.Vector3().crossVectors(up, direction).normalize();
+                    const angle = Math.acos(up.dot(direction));
+                    bond.quaternion.setFromAxisAngle(axis, angle);
+                    
+                    bond.visible = true;
+                    bond.userData = { 
+                        type: 'c4-phosphate-bond', 
+                        index: index, 
+                        strand: 2,
+                        originalColor: config.colors.phosBond, // 保存原始颜色以便恢复
+                        originalScale: new THREE.Vector3(1, 1, 1) // 保存原始大小
+                    };
+                    strand2.add(bond);
+                    
+                    // 在化学键另一端（碳端）添加5号碳原子表示
+                    const carbonAtomGeometry = new THREE.SphereGeometry(0.08, 12, 12);
+                    const carbonAtomMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 }); // 黑色表示碳原子
+                    const carbonAtom = new THREE.Mesh(carbonAtomGeometry, carbonAtomMaterial);
+                    carbonAtom.position.copy(bondStart);
+                    carbonAtom.userData = { type: 'atom', atomType: 'C5', index: index, strand: 2 };
+                    strand2.add(carbonAtom);
+                    
+                    // 为5号碳原子添加"5"标签
+                    const c5Label = createTextLabel("5", 0xFFFFFF, 0.6);
+                    c5Label.position.copy(bondStart).add(new THREE.Vector3(0, 0.3, 0));
+                    c5Label.visible = config.show.labels;
+                    c5Label.userData = { type: 'label', content: '5', index: index, strand: 2 };
+                    strand2.add(c5Label);
+                } catch (e) {
+                    console.error('创建链2 C4-磷酸键时出错:', e);
+                }
+            }
+            
+            // 新增：磷酸基团的"P"标签
+            const pLabel2 = createTextLabel("P", 0xFFFFFF, 0.6);
+            pLabel2.position.copy(phosphate2Pos).add(new THREE.Vector3(0, 0.5, 0));
+            pLabel2.visible = config.show.labels && config.show.phosphates;
+            pLabel2.userData = { type: 'label', content: 'P', index: index, strand: 2 };
+            strand2.add(pLabel2);
+            
+            // 3. 碱基 + 字母标识
+            const base2Color = base2Type === 'T' ? config.colors.thymine : config.colors.guanine;
+            const base2 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.4), // 使用长方体代替圆柱体，缩短长度
+                new THREE.MeshPhongMaterial({ color: base2Color })
+            );
+            // 进一步增加偏移距离，彻底避免与五碳糖重叠
+            const base2Pos = new THREE.Vector3(
+                x2 - Math.cos(angle + Math.PI) * 1.0, 
+                yPos, 
+                z2 - Math.sin(angle + Math.PI) * 1.0
+            );
+            base2.position.copy(base2Pos);
+            base2.rotation.z = Math.PI / 2;
+            base2.visible = config.show.bases;
+            base2.userData = { type: 'base', baseType: base2Type, index: index, strand: 2 };
+            // 保存原始颜色和大小以便高亮效果
+            base2.userData.originalColor = base2Color;
+            base2.userData.originalScale = new THREE.Vector3(1, 1, 1);
+            // 将碱基添加到跟踪数组
+            baseObjects.push(base2);
+            strand2.add(base2);
+            
+            // 添加连接碱基和1号碳的化学键
+            if (config.show.sugars && config.show.bases) {
+                try {
+                    // 获取C1原子的局部坐标
+                    const c1Local = new THREE.Vector3(
+                        sugar2.userData.atoms.C1.x,
+                        sugar2.userData.atoms.C1.y,
+                        sugar2.userData.atoms.C1.z
+                    );
+                    
+                    // 计算C1原子的世界坐标
+                    const c1World = sugar2.localToWorld(c1Local.clone());
+                    
+                    // 创建碱基-1号碳化学键
+                    const baseC1Direction = new THREE.Vector3().subVectors(base2Pos, c1World).normalize();
+                    // 稍微调整方向，使化学键连接到碱基的合适位置
+                    const adjustedC1Pos = c1World.clone().add(baseC1Direction.clone().multiplyScalar(0.1));
+                    const adjustedBasePos = base2Pos.clone().add(baseC1Direction.clone().multiplyScalar(-0.1));
+                    const baseC1Length = adjustedBasePos.distanceTo(adjustedC1Pos);
+                    
+                    const baseC1Bond = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.03, 0.03, baseC1Length, 12),
+                        new THREE.MeshPhongMaterial({ color: config.colors.phosBond })
+                    );
+                    
+                    // 设置位置和旋转
+                    baseC1Bond.position.addVectors(adjustedC1Pos, adjustedBasePos).multiplyScalar(0.5);
+                    
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const axis = new THREE.Vector3().crossVectors(up, baseC1Direction).normalize();
+                    const bondAngle = Math.acos(up.dot(baseC1Direction));
+                    baseC1Bond.quaternion.setFromAxisAngle(axis, bondAngle);
+                    
+                    baseC1Bond.visible = true;
+                    baseC1Bond.userData = { 
+                        type: 'base-c1-bond', 
+                        index: index, 
+                        strand: 2,
+                        originalColor: config.colors.phosBond,
+                        originalScale: new THREE.Vector3(1, 1, 1)
+                    };
+                    strand2.add(baseC1Bond);
+                } catch (e) {
+                    console.error('创建链2碱基-C1键时出错:', e);
+                }
+            }
+            
+            // 新增：碱基的字母标签
+            const base2Label = createTextLabel(
+                base2Type, 
+                0xFFFFFF, // T和G用白色
+                0.6
+            );
+            base2Label.position.copy(base2Pos).add(new THREE.Vector3(0, 0.5, 0));
+            base2Label.visible = config.show.labels && config.show.bases;
+            base2Label.userData = { type: 'label', content: base2Type, index: index, strand: 2 };
+            strand2.add(base2Label);
+            
+            // 创建磷酸二脂键（连接相邻核苷酸）
+            if (index > 0) {
+                // 链1的磷酸二脂键
+                const bond1 = createPhosphodiesterBond(
+                    x1, yPos, z1, 
+                    Math.cos((index-1)*0.628) * radius, 
+                    (index-1)*heightStep, 
+                    Math.sin((index-1)*0.628) * radius,
+                    1
+                );
+                bond1.visible = config.show.phosBonds;
+                bond1.userData = { type: 'bond', index: index, strand: 1 };
+                strand1.add(bond1);
+                
+                // 链2的磷酸二脂键
+                const bond2 = createPhosphodiesterBond(
+                    x2, yPos, z2, 
+                    Math.cos((index-1)*0.628 + Math.PI) * radius, 
+                    (index-1)*heightStep, 
+                    Math.sin((index-1)*0.628 + Math.PI) * radius,
+                    2
+                );
+                bond2.visible = config.show.phosBonds;
+                bond2.userData = { type: 'bond', index: index, strand: 2 };
+                strand2.add(bond2);
+            }
+            
+            // 创建氢键
+            createHydrogenBonds(
+                base1.position, 
+                base2.position, 
+                isATPair ? 2 : 3,
+                index
+            );
+        }
+        
+        // 移除单个核苷酸对
+        function removeNucleotidePair(index) {
+            // 移除链1中该索引的所有组件
+            const strand1Children = strand1.children;
+            for (let i = strand1Children.length - 1; i >= 0; i--) {
+                const child = strand1Children[i];
+                if (child.userData && child.userData.index === index) {
+                    strand1.remove(child);
+                    // 如果是碱基，从baseObjects数组中移除
+                    if (child.userData.type === 'base') {
+                        const baseIndex = baseObjects.indexOf(child);
+                        if (baseIndex !== -1) {
+                            baseObjects.splice(baseIndex, 1);
+                        }
+                    }
+                }
+            }
+            
+            // 移除链2中该索引的所有组件
+            const strand2Children = strand2.children;
+            for (let i = strand2Children.length - 1; i >= 0; i--) {
+                const child = strand2Children[i];
+                if (child.userData && child.userData.index === index) {
+                    strand2.remove(child);
+                    // 如果是碱基，从baseObjects数组中移除
+                    if (child.userData.type === 'base') {
+                        const baseIndex = baseObjects.indexOf(child);
+                        if (baseIndex !== -1) {
+                            baseObjects.splice(baseIndex, 1);
+                        }
+                    }
+                }
+            }
+            
+            // 移除该索引对应的氢键
+            const hydroChildren = hydroBondsGroup.children;
+            for (let i = hydroChildren.length - 1; i >= 0; i--) {
+                const child = hydroChildren[i];
+                if (child.userData && child.userData.index === index) {
+                    hydroBondsGroup.remove(child);
+                }
+            }
+            
+            // 更新所有大于该索引的组件的位置
+            updatePositionsAfterRemoval(index);
+        }
+        
+        // 移除一个核苷酸对后，更新所有后续组件的位置
+        function updatePositionsAfterRemoval(removedIndex) {
+            const radius = config.dnaRadius;
+            const heightStep = config.stepHeight;
+            
+            // 更新链1中所有组件
+            strand1.children.forEach(child => {
+                if (child.userData && child.userData.index > removedIndex) {
+                    const newIndex = child.userData.index - 1;
+                    child.userData.index = newIndex;
+                    
+                    // 计算新的位置
+                    const angle = (newIndex * 0.628) % (Math.PI * 2);
+                    const yPos = newIndex * heightStep;
+                    
+                    if (child.userData.type === 'sugar') {
+                        const x = Math.cos(angle) * radius;
+                        const z = Math.sin(angle) * radius;
+                        child.position.set(x, yPos, z);
+                    } else if (child.userData.type === 'phosphate') {
+                        const x = Math.cos(angle) * radius + Math.cos(angle) * 1.2; // 更新为1.2匹配创建时的偏移
+                        const z = Math.sin(angle) * radius + Math.sin(angle) * 1.2;
+                        child.position.set(x, yPos - 0.2, z); // 添加y轴偏移-0.2
+                    } else if (child.userData.type === 'base') {
+                        const x = Math.cos(angle) * radius - Math.cos(angle) * 0.6;
+                        const z = Math.sin(angle) * radius - Math.sin(angle) * 0.6;
+                        child.position.set(x, yPos, z);
+                    } else if (child.userData.type === 'label') {
+                        // 标签位置跟随其对应的组件移动
+                        if (child.userData.content === 'P') {
+                            const x = Math.cos(angle) * radius + Math.cos(angle) * 1.2;
+                            const z = Math.sin(angle) * radius + Math.sin(angle) * 1.2;
+                            child.position.set(x, yPos - 0.2 + 0.5, z); // 调整y轴偏移
+                        } else {
+                            const x = Math.cos(angle) * radius - Math.cos(angle) * 0.6;
+                            const z = Math.sin(angle) * radius - Math.sin(angle) * 0.6;
+                            child.position.set(x, yPos + 0.5, z);
+                        }
+                    } else if (child.userData.type === 'bond' && child.userData.index > removedIndex) {
+                        const newBondIndex = child.userData.index - 1;
+                        child.userData.index = newBondIndex;
+                        
+                        const angle = (newBondIndex * 0.628) % (Math.PI * 2);
+                        const yPos = newBondIndex * heightStep;
+                        const prevYPos = (newBondIndex - 1) * heightStep;
+                        
+                        // 更新磷酸二脂键
+                        const x1 = Math.cos(angle) * radius;
+                        const z1 = Math.sin(angle) * radius;
+                        const x2 = Math.cos((newBondIndex - 1) * 0.628) * radius;
+                        const z2 = Math.sin((newBondIndex - 1) * 0.628) * radius;
+                        
+                        updatePhosphodiesterBond(child, x1, yPos, z1, x2, prevYPos, z2);
+                    }
+                }
+            });
+            
+            // 更新链2中所有组件
+            strand2.children.forEach(child => {
+                if (child.userData && child.userData.index > removedIndex) {
+                    const newIndex = child.userData.index - 1;
+                    child.userData.index = newIndex;
+                    
+                    // 计算新的位置
+                    const angle = (newIndex * 0.628) % (Math.PI * 2);
+                    const yPos = newIndex * heightStep;
+                    
+                    if (child.userData.type === 'sugar') {
+                        const x = Math.cos(angle + Math.PI) * radius;
+                        const z = Math.sin(angle + Math.PI) * radius;
+                        child.position.set(x, yPos, z);
+                    } else if (child.userData.type === 'phosphate') {
+                        const x = Math.cos(angle + Math.PI) * radius + Math.cos(angle + Math.PI) * 1.2; // 更新为1.2匹配创建时的偏移
+                        const z = Math.sin(angle + Math.PI) * radius + Math.sin(angle + Math.PI) * 1.2;
+                        child.position.set(x, yPos - 0.2, z); // 添加y轴偏移-0.2
+                    } else if (child.userData.type === 'base') {
+                        const x = Math.cos(angle + Math.PI) * radius - Math.cos(angle + Math.PI) * 0.6;
+                        const z = Math.sin(angle + Math.PI) * radius - Math.sin(angle + Math.PI) * 0.6;
+                        child.position.set(x, yPos, z);
+                    } else if (child.userData.type === 'label') {
+                        // 标签位置跟随其对应的组件移动
+                        if (child.userData.content === 'P') {
+                            const x = Math.cos(angle + Math.PI) * radius + Math.cos(angle + Math.PI) * 1.2;
+                            const z = Math.sin(angle + Math.PI) * radius + Math.sin(angle + Math.PI) * 1.2;
+                            child.position.set(x, yPos - 0.2 + 0.5, z); // 调整y轴偏移
+                        } else {
+                            const x = Math.cos(angle + Math.PI) * radius - Math.cos(angle + Math.PI) * 0.6;
+                            const z = Math.sin(angle + Math.PI) * radius - Math.sin(angle + Math.PI) * 0.6;
+                            child.position.set(x, yPos + 0.5, z);
+                        }
+                    } else if (child.userData.type === 'bond' && child.userData.index > removedIndex) {
+                        const newBondIndex = child.userData.index - 1;
+                        child.userData.index = newBondIndex;
+                        
+                        const angle = (newBondIndex * 0.628) % (Math.PI * 2);
+                        const yPos = newBondIndex * heightStep;
+                        const prevYPos = (newBondIndex - 1) * heightStep;
+                        
+                        // 更新磷酸二脂键
+                        const x1 = Math.cos(angle + Math.PI) * radius;
+                        const z1 = Math.sin(angle + Math.PI) * radius;
+                        const x2 = Math.cos((newBondIndex - 1) * 0.628 + Math.PI) * radius;
+                        const z2 = Math.sin((newBondIndex - 1) * 0.628 + Math.PI) * radius;
+                        
+                        updatePhosphodiesterBond(child, x1, yPos, z1, x2, prevYPos, z2);
+                    }
+                }
+            });
+            
+            // 更新氢键
+            let hydroIndex = 0;
+            hydroBondsGroup.children.forEach(child => {
+                if (child.userData && child.userData.index > removedIndex) {
+                    const newIndex = child.userData.index - 1;
+                    child.userData.index = newIndex;
+                    
+                    // 找到对应的碱基位置
+                    let base1, base2;
+                    strand1.children.forEach(strandChild => {
+                        if (strandChild.userData && strandChild.userData.type === 'base' && strandChild.userData.index === newIndex) {
+                            base1 = strandChild;
+                        }
+                    });
+                    strand2.children.forEach(strandChild => {
+                        if (strandChild.userData && strandChild.userData.type === 'base' && strandChild.userData.index === newIndex) {
+                            base2 = strandChild;
+                        }
+                    });
+                    
+                    if (base1 && base2) {
+                        // 重新计算氢键位置
+                        const direction = base2.position.clone().sub(base1.position).normalize();
+                        const normal = new THREE.Vector3().crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+                        
+                        // 确定氢键数量
+                        const isATPair = newIndex % 2 === 0;
+                        const count = isATPair ? 2 : 3;
+                        
+                        // 偏移量
+                        const offsetMultiplier = count === 2 ? 0.35 : 0.25;
+                        
+                        // 找到当前氢键在该对中的索引
+                        const pairIndex = hydroIndex % count;
+                        const offset = (pairIndex - (count - 1) / 2) * offsetMultiplier;
+                        const finalOffset = count === 3 && pairIndex === 1 ? 0 : offset;
+                        
+                        // 创建偏移后的起点和终点
+                        const offsetVector = normal.clone().multiplyScalar(finalOffset);
+                        const start = base1.position.clone().add(offsetVector);
+                        const end = base2.position.clone().add(offsetVector);
+                        
+                        // 更新线段位置
+                        const positions = child.geometry.attributes.position.array;
+                        positions[0] = start.x;
+                        positions[1] = start.y;
+                        positions[2] = start.z;
+                        positions[3] = end.x;
+                        positions[4] = end.y;
+                        positions[5] = end.z;
+                        child.geometry.attributes.position.needsUpdate = true;
+                        
+                        hydroIndex++;
+                    }
+                }
+            });
+        }
+        
+        // 更新磷酸二脂键的位置和方向
+        function updatePhosphodiesterBond(bond, x1, y1, z1, x2, y2, z2) {
+            // 计算从第一个糖分子到第二个糖分子的方向向量
+            const direction = new THREE.Vector3(x2 - x1, y2 - y1, z2 - z1).normalize();
+            
+            // 定义五碳糖的半径（从之前的代码可以看到是0.4）
+            const sugarRadius = 0.4;
+            
+            // 计算DNA直径影响因子 - 让偏移量与DNA直径成正比
+            const dnaRadiusFactor = config.dnaRadius / 4.5; // 基准直径4.5
+            
+            // 偏移因子考虑糖分子半径和DNA直径
+            const offsetFactor = sugarRadius * 1.7 * dnaRadiusFactor;
+            
+            // 从糖分子中心向连接方向偏移，确保磷酸二脂键连接在糖分子外部
+            const start = new THREE.Vector3(x1, y1, z1).add(direction.clone().multiplyScalar(offsetFactor));
+            const end = new THREE.Vector3(x2, y2, z2).add(direction.clone().multiplyScalar(-offsetFactor));
+            
+            const bondDirection = new THREE.Vector3().subVectors(end, start);
+            const length = bondDirection.length();
+            
+            // 更新位置
+            bond.position.copy(new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5));
+            
+            // 更新旋转
+            bond.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                bondDirection.normalize()
+            );
+            
+            // 更新长度
+            bond.scale.y = length;
+        }
+        
+        // 创建磷酸二脂键
+        function createPhosphodiesterBond(x1, y1, z1, x2, y2, z2, strand = 1) {
+            // 计算从第一个糖分子到第二个糖分子的方向向量
+            const direction = new THREE.Vector3(x2 - x1, y2 - y1, z2 - z1).normalize();
+            
+            // 定义五碳糖的半径（从之前的代码可以看到是0.4）
+            const sugarRadius = 0.4;
+            
+            // 计算DNA直径影响因子 - 让偏移量与DNA直径成正比
+            const dnaRadiusFactor = config.dnaRadius / 4.5; // 基准直径4.5
+            
+            // 偏移因子考虑糖分子半径和DNA直径
+            const offsetFactor = sugarRadius * 1.7 * dnaRadiusFactor;
+            
+            // 从糖分子中心向连接方向偏移，确保磷酸二脂键连接在糖分子外部
+            const start = new THREE.Vector3(x1, y1, z1).add(direction.clone().multiplyScalar(offsetFactor));
+            const end = new THREE.Vector3(x2, y2, z2).add(direction.clone().multiplyScalar(-offsetFactor));
+            
+            const bondDirection = new THREE.Vector3().subVectors(end, start);
+            const length = bondDirection.length();
+            
+            // 根据链ID选择颜色
+            const bondColor = strand === 1 ? config.colors.strand1.phosphodiester : config.colors.strand2.phosphodiester;
+            
+            const bond = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.05, 0.05, length, 12),
+                new THREE.MeshPhongMaterial({ color: bondColor })
+            );
+            bond.userData.strand = strand;
+            
+            // 设置位置和旋转
+            bond.position.copy(new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5));
+            bond.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                bondDirection.normalize()
+            );
+            
+            return bond;
+        }
+        
+        // 创建氢键
+        function createHydrogenBonds(pos1, pos2, count, index) {
+            // 根据碱基对类型调整偏移量，使氢键分布更加合理
+            const offsetMultiplier = count === 2 ? 0.35 : 0.25; // A-T用更大的偏移量，G-C用较小的偏移量
+            
+            // 计算垂直于碱基对方向的偏移向量
+            const direction = pos2.clone().sub(pos1).normalize();
+            const normal = new THREE.Vector3().crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+            
+            for (let i = 0; i < count; i++) {
+                // 计算氢键位置偏移
+                const offset = (i - (count - 1) / 2) * offsetMultiplier;
+                
+                // 对于G-C碱基对的中间氢键，不添加偏移，使其位于中心位置
+                const finalOffset = count === 3 && i === 1 ? 0 : offset;
+                
+                // 创建偏移后的起点和终点
+                const offsetVector = normal.clone().multiplyScalar(finalOffset);
+                const start = pos1.clone().add(offsetVector);
+                const end = pos2.clone().add(offsetVector);
+                
+                // 创建虚线氢键
+                const points = [start, end];
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                
+                // 创建虚线材质
+                const material = new THREE.LineDashedMaterial({
+                    color: config.colors.hydrogen,
+                    linewidth: 1,
+                    dashSize: 0.2,
+                    gapSize: 0.1
+                });
+                
+                // 创建线条对象
+                const bond = new THREE.Line(geometry, material);
+                
+                // 计算并设置虚线的长度参数
+                bond.computeLineDistances();
+                
+                bond.userData = { type: 'hydrogen', index: index };
+                bond.visible = config.show.hydroBonds;
+                hydroBondsGroup.add(bond);
+            }
+        }
+        
+        // 更新可见性（包括标签）
+        function updateVisibility() {
+            console.log('updateVisibility called, labels visibility:', config.show.labels);
+            console.log('show.phosphates:', config.show.phosphates);
+            console.log('show.bases:', config.show.bases);
+            console.log('Total labels in array:', labels.length);
+            
+            // 更新链1组件和标签
+            strand1.children.forEach(child => {
+                // 首先检查userData类型（更可靠的方式）
+                if (child.userData && child.userData.type) {
+                    if (child.userData.type === 'sugar') {
+                        // 控制五碳糖的五角形状显示
+                        child.visible = config.show.sugars;
+                    } else if (child.userData.type === 'phosphate') {
+                        child.visible = config.show.phosphates;
+                    } else if (child.userData.type === 'base') {
+                        child.visible = config.show.bases;
+                    } else if (child.userData.type === 'c4-c5-bond') {
+                        // 控制C4-C5键（5号碳与四碳的连接键）显示
+                        child.visible = config.show.sugars;
+                    } else if (child.userData.type === 'atom' && child.userData.atomType === 'C5') {
+                        // 控制5号碳原子显示
+                        child.visible = config.show.sugars;
+                    } else if (child.material && child.material.color) {
+                        // 磷酸二脂键（保持原有的控制逻辑）
+                        child.visible = config.show.phosBonds;
+                    }
+                }
+                // 然后检查材质颜色作为备用
+                else if (child.material && child.material.color) {
+                    // 五碳糖
+                    if (child.material.color.getHex() === 0x8B4513) {
+                        child.visible = config.show.sugars;
+                    }
+                    // 磷酸基团
+                    else if (child.material.color.getHex() === 0x9333EA) {
+                        child.visible = config.show.phosphates;
+                    }
+                    // 碱基
+                    else if (child.userData && child.userData.type === 'base') {
+                        child.visible = config.show.bases;
+                    }
+                    // 磷酸二脂键
+                    else {
+                        child.visible = config.show.phosBonds;
+                    }
+                }
+                // 标签
+                else if (child instanceof THREE.Sprite) {
+                    // 对标签使用更直接的可见性控制
+                    if (child.userData && child.userData.type === 'label') {
+                        if (child.userData.content === 'P') {
+                            child.visible = config.show.labels && config.show.phosphates;
+                        } else {
+                            child.visible = config.show.labels && config.show.bases;
+                        }
+                        console.log('Updated sprite label visibility:', child.userData.content, 'to', child.visible);
+                    } else {
+                        // 对于没有正确标记的标签，直接使用show.labels
+                        child.visible = config.show.labels;
+                        console.log('Updated untyped sprite label visibility to', child.visible);
+                    }
+                }
+            });
+            
+            // 更新链2组件和标签
+            strand2.children.forEach(child => {
+                // 首先检查userData类型（更可靠的方式）
+                if (child.userData && child.userData.type) {
+                    if (child.userData.type === 'sugar') {
+                        // 控制五碳糖的五角形状显示
+                        child.visible = config.show.sugars;
+                    } else if (child.userData.type === 'phosphate') {
+                        child.visible = config.show.phosphates;
+                    } else if (child.userData.type === 'base') {
+                        child.visible = config.show.bases;
+                    } else if (child.userData.type === 'c4-c5-bond') {
+                        // 控制C4-C5键（5号碳与四碳的连接键）显示
+                        child.visible = config.show.sugars;
+                    } else if (child.userData.type === 'atom' && child.userData.atomType === 'C5') {
+                        // 控制5号碳原子显示
+                        child.visible = config.show.sugars;
+                    } else if (child.material && child.material.color) {
+                        // 磷酸二脂键（保持原有的控制逻辑）
+                        child.visible = config.show.phosBonds;
+                    }
+                }
+                // 然后检查材质颜色作为备用
+                else if (child.material && child.material.color) {
+                    // 五碳糖
+                    if (child.material.color.getHex() === 0x8B4513) {
+                        child.visible = config.show.sugars;
+                    }
+                    // 磷酸基团
+                    else if (child.material.color.getHex() === 0x9333EA) {
+                        child.visible = config.show.phosphates;
+                    }
+                    // 碱基
+                    else if (child.userData && child.userData.type === 'base') {
+                        child.visible = config.show.bases;
+                    }
+                    // 磷酸二脂键
+                    else {
+                        child.visible = config.show.phosBonds;
+                    }
+                }
+                // 标签
+                else if (child instanceof THREE.Sprite) {
+                    // 对标签使用更直接的可见性控制
+                    if (child.userData && child.userData.type === 'label') {
+                        if (child.userData.content === 'P') {
+                            child.visible = config.show.labels && config.show.phosphates;
+                        } else {
+                            child.visible = config.show.labels && config.show.bases;
+                        }
+                        console.log('Updated sprite label visibility:', child.userData.content, 'to', child.visible);
+                    } else {
+                        // 对于没有正确标记的标签，直接使用show.labels
+                        child.visible = config.show.labels;
+                        console.log('Updated untyped sprite label visibility to', child.visible);
+                    }
+                }
+            });
+            
+            // 更新氢键
+            hydroBondsGroup.children.forEach(bond => {
+                bond.visible = config.show.hydroBonds;
+            });
+            
+            // 额外保险：直接遍历labels数组更新所有标签的可见性，使用与前面相同的逻辑
+            console.log('Updating labels directly, total labels:', labels.length);
+            labels.forEach((label, index) => {
+                if (label instanceof THREE.Sprite) {
+                    const labelVisible = config.show.labels;
+                    label.visible = labelVisible;
+                    console.log(`Label ${index} visible:`, labelVisible);
+                }
+            });
+        }
+        
+        // 初始化控制器
+        function initControls() {
+            // 旋转速度控制
+            const rotationSlider = document.getElementById('rotationSpeed');
+            const rotationValue = document.getElementById('rotationSpeedValue');
+            rotationSlider.addEventListener('input', () => {
+                config.rotationSpeed = parseFloat(rotationSlider.value);
+                rotationValue.textContent = config.rotationSpeed.toFixed(3);
+            });
+            
+            // 反向旋转控制
+            document.getElementById('reverseRotation').addEventListener('change', (e) => {
+                config.reverseRotation = e.target.checked;
+            });
+            
+            // 核苷酸数量控制
+            const nucleotideSlider = document.getElementById('nucleotideCount');
+            const nucleotideValue = document.getElementById('nucleotideValue');
+            nucleotideSlider.addEventListener('input', () => {
+                const newValue = parseInt(nucleotideSlider.value);
+                const oldValue = config.nucleotideCount;
+                
+                // 更新配置和显示
+                config.nucleotideCount = newValue;
+                nucleotideValue.textContent = config.nucleotideCount;
+                
+                // 实时添加或删除碱基对
+                if (newValue > oldValue) {
+                    // 添加新的碱基对
+                    for (let i = oldValue; i < newValue; i++) {
+                        addNucleotidePair(i);
+                    }
+                } else if (newValue < oldValue) {
+                    // 移除多余的碱基对
+                    for (let i = oldValue - 1; i >= newValue; i--) {
+                        removeNucleotidePair(i);
+                    }
+                }
+                
+                // 更新DNA模型名称显示
+                updateStatus(`DNA模型就绪- ${config.nucleotideCount}个碱基对`);
+            });
+            
+            // 设置固定的DNA半径值，不再允许调整
+            config.dnaRadius = 4.5;
+            
+            // 显示选项控制
+            document.getElementById('showSugars').addEventListener('change', (e) => {
+                config.show.sugars = e.target.checked;
+                updateVisibility();
+            });
+            
+            document.getElementById('showPhosphates').addEventListener('change', (e) => {
+                config.show.phosphates = e.target.checked;
+                updateVisibility();
+            });
+            
+            document.getElementById('showBases').addEventListener('change', (e) => {
+                config.show.bases = e.target.checked;
+                updateVisibility();
+            });
+            
+            document.getElementById('showPhosBonds').addEventListener('change', (e) => {
+                config.show.phosBonds = e.target.checked;
+                updateVisibility();
+            });
+            
+            document.getElementById('showHydroBonds').addEventListener('change', (e) => {
+                config.show.hydroBonds = e.target.checked;
+                updateVisibility();
+            });
+            
+            // 新增：字母标识显示控制
+            document.getElementById('showLabels').addEventListener('change', (e) => {
+                config.show.labels = e.target.checked;
+                updateVisibility();
+            });
+            
+            // 重置DNA模型
+            document.getElementById('resetView').addEventListener('click', () => {
+                document.getElementById('loader').classList.remove('hidden');
+                updateStatus("正在重置DNA模型...");
+                setTimeout(() => {
+                    // 先重置相机和控制器
+                    camera.position.set(0, 0, 30);
+                    dnaGroup.rotation.set(0, 0, 0);
+                    controls.reset();
+                    
+                    // 然后重建DNA模型
+                    createDNA();
+                }, 300);
+            });
+            
+            // 恢复默认颜色
+            document.getElementById('resetColors').addEventListener('click', () => {
+                updateStatus('正在恢复默认颜色...');
+                resetColorsToDefault();
+            });
+        }
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 应用旋转
+            const direction = config.reverseRotation ? -1 : 1;
+            dnaGroup.rotation.y += config.rotationSpeed * direction;
+            
+            // 检测鼠标悬停
+            checkHover();
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // 初始化应用
+        function init() {
+            try {
+                updateStatus("初始化3D场景...");
+                initScene();
+                
+                updateStatus("创建DNA模型...");
+                createDNA();
+                
+                updateStatus("初始化控制器...");
+                initControls();
+                
+                // 启动动画
+                animate();
+            } catch (error) {
+                console.error("初始化错误:", error);
+                document.getElementById('loader').innerHTML = `
+                    <p class="text-red-400">加载失败</p>
+                    <p class="text-xs mt-2">请刷新页面重试</p>
+                    <button onclick="window.location.reload()" class="mt-3 bg-primary hover:bg-primary/80 text-white py-1 px-3 rounded text-sm">
+                        重试
+                    </button>
+                `;
+            }
+        }
+        
+        // 鼠标移动处理
+        function onMouseMove(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        }
+        
+        // 检查碱基对、标签、磷酸基团和五碳糖悬停
+        function checkHover() {
+            if (!raycaster || !camera) return;
+            
+            // 避免在快速移动时频繁计算
+            if (!needsHoverUpdate) return;
+            
+            // 创建所有可交互对象数组，包括链中的所有对象（通过递归获取）
+            const allInteractableObjects = [];
+            
+            // 添加已有的碱基和标签
+            allInteractableObjects.push(...baseObjects, ...labels);
+            
+            // 递归获取链中的所有对象
+            function collectObjects(group) {
+                if (!group || !group.children) return;
+                group.children.forEach(child => {
+                    // 只添加有材质的可视对象
+                    if (child.material) {
+                        allInteractableObjects.push(child);
+                    }
+                    // 递归处理子组
+                    if (child.children && child.children.length > 0) {
+                        collectObjects(child);
+                    }
+                });
+            }
+            
+            // 收集两个链中的所有对象
+            collectObjects(strand1);
+            collectObjects(strand2);
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(allInteractableObjects, true);
+            
+            // 重置之前的悬停对象，确保所有类型的对象都能正确重置
+            if (hoveredBase) {
+                // 检查是否有新的悬停对象，如果没有或者不是同一个对象，则重置
+                const shouldReset = !intersects.length || intersects[0].object !== hoveredBase;
+                
+                if (shouldReset) {
+                    if (hoveredBase instanceof THREE.Sprite && hoveredBase.userData.type === 'label') {
+                        // 标签重置
+                        if (hoveredBase.userData.highlighted) {
+                            hoveredBase.scale.copy(hoveredBase.userData.originalScale);
+                            
+                            // 根据当前主题恢复标签颜色
+                            const canvas = hoveredBase.material.map.image;
+                            if (canvas) {
+                                const ctx = canvas.getContext('2d');
+                                const text = hoveredBase.userData.content;
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                // 检查当前主题，亮色主题使用黑色，深色主题使用白色
+                                const isLightTheme = document.body.classList.contains('light-theme');
+                                ctx.fillStyle = isLightTheme ? '#000000' : '#FFFFFF';
+                                ctx.font = 'bold 32px Arial';
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+                                hoveredBase.material.map.needsUpdate = true;
+                            }
+                            
+                            hoveredBase.userData.highlighted = false;
+                        }
+                    } else if (hoveredBase.material && hoveredBase.userData.originalColor) {
+                        // 普通物体（碱基、磷酸基团、五碳糖等）重置
+                        hoveredBase.material.color.set(hoveredBase.userData.originalColor);
+                        hoveredBase.scale.copy(hoveredBase.userData.originalScale);
+                    }
+                    hoveredBase = null;
+                }
+            }
+            
+            // 处理新悬停的对象
+            if (intersects.length) {
+                const newHover = intersects[0].object;
+                if (newHover !== hoveredBase) {
+                    hoveredBase = newHover;
+                    
+                    // 保存原始状态（如果尚未保存）
+                    if (!hoveredBase.userData.originalColor) {
+                        hoveredBase.userData.originalColor = hoveredBase instanceof THREE.Sprite && 
+                                                            hoveredBase.userData.type === 'label' ? 
+                                                            0xffffff : hoveredBase.material?.color?.getHex() || 0xffffff;
+                        hoveredBase.userData.originalScale = new THREE.Vector3().copy(hoveredBase.scale);
+                    }
+                    
+                    // 设置高亮效果
+                    if (hoveredBase instanceof THREE.Sprite && hoveredBase.userData.type === 'label') {
+                        // 标签高亮：直接放大，颜色通过Canvas调整
+                        hoveredBase.scale.copy(hoveredBase.userData.originalScale).multiplyScalar(1.3);
+                        hoveredBase.userData.highlighted = true;
+                        
+                        // 更新标签颜色为黄色
+                        const canvas = hoveredBase.material.map.image;
+                        if (canvas) {
+                            const ctx = canvas.getContext('2d');
+                            const text = hoveredBase.userData.content;
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            ctx.fillStyle = '#FFFF00'; // 黄色
+                            ctx.font = 'bold 32px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+                            hoveredBase.material.map.needsUpdate = true;
+                        }
+                    } else if (hoveredBase.material) {
+                        // 普通物体高亮（碱基、磷酸基团、五碳糖等）
+                        hoveredBase.material.color.set(0xFFFF00); // 黄色高亮
+                        hoveredBase.scale.copy(hoveredBase.userData.originalScale).multiplyScalar(1.3);
+                    }
+                }
+            }
+            
+            // 限制更新频率
+            needsHoverUpdate = false;
+            setTimeout(() => {
+                needsHoverUpdate = true;
+            }, 50); // 每50毫秒最多更新一次
+        }
+        
+        // 添加一个标志来控制悬停更新频率
+        let needsHoverUpdate = true;
+        
+        // 修改鼠标移动事件处理，优化性能
+        function onMouseMove(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            // 只有在允许更新时才设置标志
+            if (!needsHoverUpdate) {
+                needsHoverUpdate = true;
+            }
+        }
+        
+        // 更新颜色指示器
+        function updateColorIndicator(component, color) {
+            // 将连字符命名转换为驼峰命名
+            const camelCaseComponent = component.replace(/-([a-z])/g, g => g[1].toUpperCase());
+            const indicator = document.getElementById(`${camelCaseComponent}ColorIndicator`);
+            if (indicator) {
+                indicator.style.backgroundColor = color;
+            }
+        }
+        
+        // 更新模型中特定类型组件的颜色
+        function updateComponentColor(componentType, hexColor) {
+            const colorValue = parseInt(hexColor.replace('#', '0x'), 16);
+            
+            // 根据组件类型设置正确的配置路径
+            if (componentType.startsWith('strand1-')) {
+                const actualType = componentType.replace('strand1-', '');
+                config.colors.strand1[actualType] = colorValue;
+            } else if (componentType.startsWith('strand2-')) {
+                const actualType = componentType.replace('strand2-', '');
+                config.colors.strand2[actualType] = colorValue;
+            } else {
+                // 通用颜色（碱基、氢键等）
+                config.colors[componentType] = colorValue;
+            }
+            
+            // 辅助函数：递归更新五碳糖组内所有子对象的颜色
+            function updateSugarObjects(group, color) {
+                if (!group || !group.children) return;
+                
+                // 更新当前对象的颜色
+                if (group.material) {
+                    // 检查是否是数字标签
+                    const isNumberLabel = group.userData && group.userData.type === 'label' && /^[1-5]$/.test(group.userData.content);
+                    // 检查是否是碳原子
+                    const isCarbonAtom = group.userData.type === 'atom' && group.userData.atomType?.startsWith('C');
+                    
+                    if (isNumberLabel) {
+                        // 对于数字标签，确保它保持白色
+                        group.material.color.set(0xFFFFFF);
+                        group.material.needsUpdate = true;
+                    } else if (isCarbonAtom) {
+                        // 对于碳原子，确保它保持黑色
+                        group.material.color.set(0x000000);
+                        group.material.needsUpdate = true;
+                    } else {
+                        // 对于非标签非碳原子对象，正常更新颜色
+                        group.material.color.set(color);
+                        if (group.userData.originalColor) {
+                            group.userData.originalColor = color;
+                        }
+                    }
+                }
+                
+                // 递归更新所有子对象
+                group.children.forEach(child => {
+                    // 继续递归处理子对象的子对象
+                    updateSugarObjects(child, color);
+                });
+            }
+            
+            // 递归更新场景中所有匹配类型的对象
+            function updateObjects(group) {
+                if (!group || !group.children) return;
+                
+                group.children.forEach(child => {
+                    // 根据对象类型或颜色标识更新颜色
+                    if (child.material) {
+                        // 处理链1的组件
+                        if (componentType.startsWith('strand1-') && child.userData.strand === 1) {
+                            const actualType = componentType.replace('strand1-', '');
+                            
+                            if (actualType === 'phosphate' && child.userData.type === 'phosphate') {
+                                child.material.color.set(colorValue);
+                                if (child.userData.originalColor) {
+                                    child.userData.originalColor = colorValue;
+                                }
+                            } else if (actualType === 'sugar') {
+                                // 全面更新五碳糖相关组件
+                                // 检查是否是五碳糖相关对象且属于链1
+                                if (child.userData.strand === 1 && (
+                                    child.userData.type === 'sugar' ||
+                                    (child.parent?.userData?.type === 'sugar') ||
+                                    child.userData.sugarComponent ||
+                                    (child.userData.type === 'atom' && child.userData.atomType?.startsWith('C')) ||
+                                    (child.parent?.userData?.atomType?.startsWith('C'))
+                                )) {
+                                    if (child.material) {
+                                    // 检查是否是数字标签
+                                    const isNumberLabel = child.userData && child.userData.type === 'label' && /^[1-5]$/.test(child.userData.content);
+                                    // 检查是否是碳原子
+                                    const isCarbonAtom = child.userData.type === 'atom' && child.userData.atomType?.startsWith('C');
+                                    
+                                    if (isNumberLabel) {
+                                        // 对于数字标签，确保它保持白色
+                                        child.material.color.set(0xFFFFFF);
+                                        child.material.needsUpdate = true;
+                                    } else if (isCarbonAtom) {
+                                        // 对于碳原子，确保它保持黑色
+                                        child.material.color.set(0x000000);
+                                        child.material.needsUpdate = true;
+                                    } else {
+                                        // 对于非标签非碳原子对象，正常更新颜色
+                                        child.material.color.set(colorValue);
+                                        if (child.userData.originalColor) {
+                                            child.userData.originalColor = colorValue;
+                                        }
+                                    }
+                                }
+                                }
+                            } else if (actualType === 'phosphodiester' && 
+                                      (child.userData.type === 'bond' || 
+                                       child.userData.type === 'c4-phosphate-bond' || 
+                                       child.userData.type === 'c4-c5-bond')) {
+                                child.material.color.set(colorValue);
+                            }
+                        }
+                        // 处理链2的组件
+                        else if (componentType.startsWith('strand2-') && child.userData.strand === 2) {
+                            const actualType = componentType.replace('strand2-', '');
+                            
+                            if (actualType === 'phosphate' && child.userData.type === 'phosphate') {
+                                child.material.color.set(colorValue);
+                                if (child.userData.originalColor) {
+                                    child.userData.originalColor = colorValue;
+                                }
+                            } else if (actualType === 'sugar') {
+                                // 全面更新五碳糖相关组件
+                                // 检查是否是五碳糖相关对象且属于链2
+                                if (child.userData.strand === 2 && (
+                                    child.userData.type === 'sugar' ||
+                                    (child.parent?.userData?.type === 'sugar') ||
+                                    child.userData.sugarComponent ||
+                                    (child.userData.type === 'atom' && child.userData.atomType?.startsWith('C')) ||
+                                    (child.parent?.userData?.atomType?.startsWith('C'))
+                                )) {
+                                    if (child.material) {
+                                        // 检查是否是数字标签
+                                        const isNumberLabel = child.userData && child.userData.type === 'label' && /^[1-5]$/.test(child.userData.content);
+                                        // 检查是否是碳原子
+                                        const isCarbonAtom = child.userData.type === 'atom' && child.userData.atomType?.startsWith('C');
+                                        
+                                        if (isNumberLabel) {
+                                            // 对于数字标签，确保它保持白色
+                                            child.material.color.set(0xFFFFFF);
+                                            child.material.needsUpdate = true;
+                                        } else if (isCarbonAtom) {
+                                            // 对于碳原子，确保它保持黑色
+                                            child.material.color.set(0x000000);
+                                            child.material.needsUpdate = true;
+                                        } else {
+                                            // 对于非标签非碳原子对象，正常更新颜色
+                                            child.material.color.set(colorValue);
+                                            if (child.userData.originalColor) {
+                                                child.userData.originalColor = colorValue;
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if (actualType === 'phosphodiester' && 
+                                      (child.userData.type === 'bond' || 
+                                       child.userData.type === 'c4-phosphate-bond' || 
+                                       child.userData.type === 'c4-c5-bond')) {
+                                child.material.color.set(colorValue);
+                            }
+                        }
+                        // 处理通用颜色（碱基、氢键等）
+                        else if (componentType === 'hydrogen' && 
+                                child.userData.type === 'hydrogen') {
+                            child.material.color.set(colorValue);
+                        }
+                        // 处理五碳糖中的氧原子（无论属于哪条链，都使用氢键颜色）
+                        else if ((componentType === 'strand1-sugar' || componentType === 'strand2-sugar') &&
+                                child.userData.type === 'atom' && 
+                                child.userData.atomType === 'O') {
+                            child.material.color.set(config.colors.hydrogen);
+                        }
+                        // 处理特定碱基类型（通用）
+                        else if (componentType === 'adenine' && 
+                                child.userData.type === 'base' && 
+                                child.userData.baseType === 'A') {
+                            child.material.color.set(colorValue);
+                            if (child.userData.originalColor) {
+                                child.userData.originalColor = colorValue;
+                            }
+                        }
+                        else if (componentType === 'thymine' && 
+                                child.userData.type === 'base' && 
+                                child.userData.baseType === 'T') {
+                            child.material.color.set(colorValue);
+                            if (child.userData.originalColor) {
+                                child.userData.originalColor = colorValue;
+                            }
+                        }
+                        else if (componentType === 'cytosine' && 
+                                child.userData.type === 'base' && 
+                                child.userData.baseType === 'C') {
+                            child.material.color.set(colorValue);
+                            if (child.userData.originalColor) {
+                                child.userData.originalColor = colorValue;
+                            }
+                        }
+                        else if (componentType === 'guanine' && 
+                                child.userData.type === 'base' && 
+                                child.userData.baseType === 'G') {
+                            child.material.color.set(colorValue);
+                            if (child.userData.originalColor) {
+                                child.userData.originalColor = colorValue;
+                            }
+                        }
+                    }
+                    
+                    // 递归处理子组
+                    if (child.children && child.children.length > 0) {
+                        updateObjects(child);
+                    }
+                });
+            }
+            
+            // 更新所有组中的对象
+            updateObjects(dnaGroup);
+            
+            // 更新颜色指示器
+            updateColorIndicator(componentType, hexColor);
+        }
+        
+        // 初始化颜色选择器事件
+        function initColorPickers() {
+            const colorComponents = [
+                // 链1组件
+                'strand1-phosphate', 'strand1-sugar', 'strand1-phosphodiester',
+                // 链2组件
+                'strand2-phosphate', 'strand2-sugar', 'strand2-phosphodiester',
+                // 通用组件
+                'adenine', 'thymine', 'cytosine', 'guanine', 'hydrogen'
+            ];
+            
+            colorComponents.forEach(component => {
+                // 将连字符命名转换为驼峰命名
+                const camelCaseComponent = component.replace(/-([a-z])/g, g => g[1].toUpperCase());
+                const picker = document.getElementById(`${camelCaseComponent}ColorPicker`);
+                const indicator = document.getElementById(`${camelCaseComponent}ColorIndicator`);
+                
+                // 颜色选择器变化事件
+                        if (picker) {
+                            picker.addEventListener('input', function() {
+                                const colorValue = this.value;
+                                
+                                // 首先执行标准的组件颜色更新
+                                updateComponentColor(component, colorValue);
+                                
+                                // 针对五碳糖的特殊处理 - 完全独立的场景遍历
+                                if (component.includes('sugar')) {
+                                    // 确定是哪条链的五碳糖
+                                    const strandNum = component.includes('strand1') ? 1 : 2;
+                                    const hexColor = parseInt(colorValue.replace('#', '0x'), 16);
+                                    
+                                    // 创建一个全局函数来直接更新所有五碳糖相关对象
+                                    (function updateAllSugarComponents(rootObject) {
+                                        // 递归遍历函数
+                                        function traverse(obj) {
+                                            // 检查是否是五碳糖相关对象
+                                            if (obj && obj.userData && obj.userData.strand === strandNum) {
+                                                // 检查各种五碳糖相关条件
+                                                const isSugarRelated = 
+                                                    obj.userData.type === 'sugar' ||
+                                                    obj.userData.sugarComponent ||
+                                                    (obj.userData.type === 'atom' && obj.userData.atomType?.startsWith('C')) ||
+                                                    (obj.parent?.userData?.type === 'sugar') ||
+                                                    (obj.parent?.userData?.atomType?.startsWith('C'));
+                                                     
+                                                // 直接更新材质颜色
+                                                // 检查是否是数字标签
+                            const isNumberLabel = obj.userData && obj.userData.type === 'label' && /^[1-5]$/.test(obj.userData.content);
+                              
+                            if (isSugarRelated && obj.material) {
+                                if (isNumberLabel) {
+                                    // 对于数字标签，确保它保持白色
+                                    obj.material.color.set(0xFFFFFF);
+                                } else {
+                                    // 对于非标签对象，正常更新颜色
+                                    obj.material.color.set(hexColor);
+                                }
+                                // 强制更新材质
+                                obj.material.needsUpdate = true;
+                            }
+                                            }
+                                            
+                                            // 递归处理所有子对象
+                                            if (obj && obj.children) {
+                                                obj.children.forEach(child => traverse(child));
+                                            }
+                                        }
+                                        
+                                        // 从根对象开始遍历
+                                        traverse(rootObject);
+                                    })(scene);
+                                    
+                                    // 同时也从dnaGroup开始遍历，确保所有对象都被处理
+                                    (function updateAllSugarComponents(rootObject) {
+                                        function traverse(obj) {
+                                            if (obj && obj.userData && obj.userData.strand === strandNum) {
+                                                const isSugarRelated = 
+                                                    obj.userData.type === 'sugar' ||
+                                                    obj.userData.sugarComponent ||
+                                                    (obj.userData.type === 'atom' && obj.userData.atomType?.startsWith('C')) ||
+                                                    (obj.parent?.userData?.type === 'sugar') ||
+                                                    (obj.parent?.userData?.atomType?.startsWith('C'));
+                                                     
+                                                // 检查是否是数字标签
+                                        const isNumberLabel = obj.userData && obj.userData.type === 'label' && /^[1-5]$/.test(obj.userData.content);
+                                          
+                                        if (isSugarRelated && obj.material) {
+                                            if (isNumberLabel) {
+                                                // 对于数字标签，确保它保持白色
+                                                obj.material.color.set(0xFFFFFF);
+                                            } else {
+                                                // 对于非标签对象，正常更新颜色
+                                                obj.material.color.set(hexColor);
+                                            }
+                                            obj.material.needsUpdate = true;
+                                        }
+                                            }
+                                            
+                                            if (obj && obj.children) {
+                                                obj.children.forEach(child => traverse(child));
+                                            }
+                                        }
+                                        
+                                        traverse(rootObject);
+                                    })(dnaGroup);
+                                }
+                            });
+                        }
+                
+                // 点击颜色指示器也打开颜色选择器
+                if (indicator && picker) {
+                    indicator.addEventListener('click', function() {
+                        picker.click();
+                    });
+                }
+            });
+        }
+        
+        // 确保更新颜色时正确应用到所有组件
+        function updateAllComponentColors() {
+            const colorComponents = [
+                // 链1组件
+                'strand1-phosphate', 'strand1-sugar', 'strand1-phosphodiester',
+                // 链2组件
+                'strand2-phosphate', 'strand2-sugar', 'strand2-phosphodiester',
+                // 通用组件
+                'adenine', 'thymine', 'cytosine', 'guanine', 'hydrogen'
+            ];
+            
+            colorComponents.forEach(component => {
+                let colorHex;
+                
+                // 根据组件类型获取正确的颜色值
+                if (component.startsWith('strand1-')) {
+                    const actualType = component.replace('strand1-', '');
+                    colorHex = '#' + config.colors.strand1[actualType].toString(16).padStart(6, '0');
+                } else if (component.startsWith('strand2-')) {
+                    const actualType = component.replace('strand2-', '');
+                    colorHex = '#' + config.colors.strand2[actualType].toString(16).padStart(6, '0');
+                } else {
+                    // 通用颜色
+                    colorHex = '#' + config.colors[component].toString(16).padStart(6, '0');
+                }
+                
+                updateComponentColor(component, colorHex);
+            });
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', function() {
+            // 先初始化场景
+            initScene();
+            
+            // 创建DNA模型
+            createDNA();
+            
+            // 初始化控制器和动画循环
+            initControls();
+            animate();
+            
+            // 初始化颜色选择器
+            initColorPickers();
+            
+            // 初始化主题切换功能
+            const themeToggle = document.getElementById('themeToggle');
+            const body = document.body;
+            const themeIcon = themeToggle.querySelector('i');
+            const themeText = document.getElementById('themeText');
+            
+            // 检查本地存储中的主题偏好
+            const savedTheme = localStorage.getItem('dnaModelTheme');
+            if (savedTheme === 'light') {
+                body.classList.add('light-theme');
+                body.classList.remove('bg-gray-950', 'text-gray-100');
+                themeIcon.classList.remove('fa-moon-o', 'text-blue-600', 'fa-leaf', 'text-green-400', 'fa-anchor', 'text-cyan-400');
+                themeIcon.classList.add('fa-sun-o', 'text-yellow-400');
+                themeText.textContent = '暗色主题';
+                
+                // 初始化时如果是浅色主题，预先设置链1磷酸二脂键颜色为黑色
+                config.colors.strand1.phosphodiester = 0x000000;
+                // 更新颜色选择器
+                const strand1PhosphodiesterColorPicker = document.getElementById('strand1PhosphodiesterColorPicker');
+                if (strand1PhosphodiesterColorPicker) {
+                    strand1PhosphodiesterColorPicker.value = '#000000';
+                }
+                // 更新颜色指示器
+                const strand1PhosphodiesterColorIndicator = document.getElementById('strand1PhosphodiesterColorIndicator');
+                if (strand1PhosphodiesterColorIndicator) {
+                    strand1PhosphodiesterColorIndicator.style.backgroundColor = '#000000';
+                }
+                
+                // 初始化时如果是浅色主题，预先设置氢键颜色为黑色
+                config.colors.hydrogen = 0x000000;
+                // 更新颜色选择器
+                const hydrogenColorPicker = document.getElementById('hydrogenColorPicker');
+                if (hydrogenColorPicker) {
+                    hydrogenColorPicker.value = '#000000';
+                }
+                // 更新颜色指示器
+                const hydrogenColorIndicator = document.getElementById('hydrogenColorIndicator');
+                if (hydrogenColorIndicator) {
+                    hydrogenColorIndicator.style.backgroundColor = '#000000';
+                }
+            } else if (savedTheme === 'eco') {
+                // 初始化时如果是生态绿主题
+                body.classList.add('eco-theme');
+                body.classList.remove('bg-gray-950', 'text-gray-100');
+                themeIcon.classList.remove('fa-sun-o', 'text-yellow-400', 'fa-moon-o', 'text-blue-600', 'fa-anchor', 'text-cyan-400');
+                themeIcon.classList.add('fa-leaf', 'text-green-400');
+                themeText.textContent = '生态主题';
+                
+                // 初始化时如果是生态绿主题，预先设置链1磷酸二脂键颜色为白色
+                config.colors.strand1.phosphodiester = 0xFFFFFF;
+                // 更新颜色选择器
+                const strand1PhosphodiesterColorPicker = document.getElementById('strand1PhosphodiesterColorPicker');
+                if (strand1PhosphodiesterColorPicker) {
+                    strand1PhosphodiesterColorPicker.value = '#FFFFFF';
+                }
+                // 更新颜色指示器
+                const strand1PhosphodiesterColorIndicator = document.getElementById('strand1PhosphodiesterColorIndicator');
+                if (strand1PhosphodiesterColorIndicator) {
+                    strand1PhosphodiesterColorIndicator.style.backgroundColor = '#FFFFFF';
+                }
+                
+                // 初始化时如果是生态绿主题，预先设置氢键颜色为白色
+                config.colors.hydrogen = 0xFFFFFF;
+                // 更新颜色选择器
+                const hydrogenColorPicker = document.getElementById('hydrogenColorPicker');
+                if (hydrogenColorPicker) {
+                    hydrogenColorPicker.value = '#FFFFFF';
+                }
+                // 更新颜色指示器
+                const hydrogenColorIndicator = document.getElementById('hydrogenColorIndicator');
+                if (hydrogenColorIndicator) {
+                    hydrogenColorIndicator.style.backgroundColor = '#FFFFFF';
+                }
+                
+                // 更新渲染区域背景
+                if (scene) {
+                    scene.background = new THREE.Color(0x1a535c);
+                }
+                const canvasContainer = document.getElementById('canvasContainer');
+                canvasContainer.style.background = 'radial-gradient(circle, #2ec4b6 0%, #1a535c 100%)';
+            } else if (savedTheme === 'ocean') {
+                // 初始化时如果是海洋主题
+                body.classList.add('ocean-theme');
+                body.classList.remove('bg-gray-950', 'text-gray-100');
+                themeIcon.classList.remove('fa-sun-o', 'text-yellow-400', 'fa-moon-o', 'text-blue-600', 'fa-leaf', 'text-green-400');
+                themeIcon.classList.add('fa-anchor', 'text-cyan-400');
+                themeText.textContent = '海洋主题';
+                
+                // 初始化时如果是海洋主题，预先设置链1磷酸二脂键颜色为白色
+                config.colors.strand1.phosphodiester = 0xFFFFFF;
+                // 更新颜色选择器
+                const strand1PhosphodiesterColorPicker = document.getElementById('strand1PhosphodiesterColorPicker');
+                if (strand1PhosphodiesterColorPicker) {
+                    strand1PhosphodiesterColorPicker.value = '#FFFFFF';
+                }
+                // 更新颜色指示器
+                const strand1PhosphodiesterColorIndicator = document.getElementById('strand1PhosphodiesterColorIndicator');
+                if (strand1PhosphodiesterColorIndicator) {
+                    strand1PhosphodiesterColorIndicator.style.backgroundColor = '#FFFFFF';
+                }
+                
+                // 初始化时如果是海洋主题，预先设置氢键颜色为白色
+                config.colors.hydrogen = 0xFFFFFF;
+                // 更新颜色选择器
+                const hydrogenColorPicker = document.getElementById('hydrogenColorPicker');
+                if (hydrogenColorPicker) {
+                    hydrogenColorPicker.value = '#FFFFFF';
+                }
+                // 更新颜色指示器
+                const hydrogenColorIndicator = document.getElementById('hydrogenColorIndicator');
+                if (hydrogenColorIndicator) {
+                    hydrogenColorIndicator.style.backgroundColor = '#FFFFFF';
+                }
+                
+                // 更新渲染区域背景
+                if (scene) {
+                    scene.background = new THREE.Color(0xe0f7fa);
+                }
+                const canvasContainer = document.getElementById('canvasContainer');
+                canvasContainer.style.background = '#e0f7fa';
+            }
+            
+            // 应用初始颜色设置到3D模型
+            // 延迟一点执行，确保模型已创建
+            setTimeout(() => {
+                let labelColor, phosphodiesterColor, hydrogenColor;
+                
+                if (savedTheme === 'light') {
+                    labelColor = '#000000'; // 黑色
+                    phosphodiesterColor = '#000000'; // 黑色
+                    hydrogenColor = '#000000'; // 黑色
+                } else if (savedTheme === 'eco' || savedTheme === 'ocean') {
+                    labelColor = '#FFFFFF'; // 白色
+                    phosphodiesterColor = '#FFFFFF'; // 白色
+                    hydrogenColor = '#FFFFFF'; // 白色
+                } else {
+                    labelColor = '#FFFFFF'; // 白色（默认深色主题）
+                    phosphodiesterColor = '#FFFFFF'; // 白色
+                    hydrogenColor = '#FFFFFF'; // 白色
+                }
+                
+                // 更新所有标签颜色
+                labels.forEach(label => {
+                    if (label instanceof THREE.Sprite && label.userData.type === 'label') {
+                        const canvas = label.material.map.image;
+                        if (canvas) {
+                            const ctx = canvas.getContext('2d');
+                            const text = label.userData.content;
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            ctx.fillStyle = labelColor;
+                            ctx.font = 'bold 32px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+                            label.material.map.needsUpdate = true;
+                        }
+                    }
+                });
+                
+                // 应用颜色更新
+                if (savedTheme === 'light' || savedTheme === 'eco' || savedTheme === 'ocean') {
+                    updateComponentColor('strand1-phosphodiester', phosphodiesterColor);
+                    updateComponentColor('hydrogen', hydrogenColor);
+                }
+            }, 1000);
+            
+            // 主题切换按钮点击事件
+            themeToggle.addEventListener('click', function() {
+                // 获取当前主题
+                let currentTheme = 'dark';
+                if (body.classList.contains('light-theme')) {
+                    currentTheme = 'light';
+                } else if (body.classList.contains('eco-theme')) {
+                    currentTheme = 'eco';
+                } else if (body.classList.contains('ocean-theme')) {
+                    currentTheme = 'ocean';
+                }
+                
+                // 移除所有主题类
+                body.classList.remove('light-theme', 'eco-theme', 'ocean-theme', 'bg-gray-950', 'text-gray-100');
+                
+                // 确定下一个主题
+                let nextTheme = 'dark';
+                if (currentTheme === 'dark') {
+                    nextTheme = 'light';
+                } else if (currentTheme === 'light') {
+                    nextTheme = 'eco';
+                } else if (currentTheme === 'eco') {
+                    nextTheme = 'ocean';
+                }
+                
+                // 应用下一个主题
+                if (nextTheme === 'light') {
+                    // 切换到浅色主题
+                    body.classList.add('light-theme');
+                    themeIcon.classList.remove('fa-moon-o', 'text-blue-600', 'fa-leaf', 'text-green-400', 'fa-anchor', 'text-cyan-400');
+                    themeIcon.classList.add('fa-sun-o', 'text-yellow-400');
+                    localStorage.setItem('dnaModelTheme', 'light');
+                    themeText.textContent = '亮色主题';
+                } else if (nextTheme === 'eco') {
+                    // 切换到生态绿主题
+                    body.classList.add('eco-theme');
+                    themeIcon.classList.remove('fa-moon-o', 'text-blue-600', 'fa-sun-o', 'text-yellow-400', 'fa-anchor', 'text-cyan-400');
+                    themeIcon.classList.add('fa-leaf', 'text-green-400');
+                    localStorage.setItem('dnaModelTheme', 'eco');
+                    themeText.textContent = '生态主题';
+                } else if (nextTheme === 'ocean') {
+                    // 切换到海洋主题
+                    body.classList.add('ocean-theme');
+                    themeIcon.classList.remove('fa-moon-o', 'text-blue-600', 'fa-sun-o', 'text-yellow-400', 'fa-leaf', 'text-green-400');
+                    themeIcon.classList.add('fa-anchor', 'text-cyan-400');
+                    localStorage.setItem('dnaModelTheme', 'ocean');
+                    themeText.textContent = '海洋主题';
+                } else {
+                    // 切换到暗色主题
+                    body.classList.add('bg-gray-950', 'text-gray-100');
+                    themeIcon.classList.remove('fa-sun-o', 'text-yellow-400', 'fa-leaf', 'text-green-400', 'fa-anchor', 'text-cyan-400');
+                    themeIcon.classList.add('fa-moon-o', 'text-blue-600');
+                    localStorage.setItem('dnaModelTheme', 'dark');
+                    themeText.textContent = '暗色主题';
+                }
+                
+                // 更新渲染区域背景色（包括Three.js场景背景）
+                if (scene) {
+                    if (nextTheme === 'light') {
+                        // 浅色主题下使用白色背景
+                        scene.background = new THREE.Color(0xffffff);
+                    } else if (nextTheme === 'eco') {
+                        // 生态绿主题下使用蓝绿色背景
+                        scene.background = new THREE.Color(0x1a535c);
+                    } else if (nextTheme === 'ocean') {
+                        // 海洋主题下使用淡蓝色背景
+                    scene.background = new THREE.Color(0xe0f7fa);
+                    } else {
+                        // 深色主题下使用深色背景
+                        scene.background = new THREE.Color(0x0a0a16);
+                    }
+                }
+                const canvasContainer = document.getElementById('canvasContainer');
+                if (nextTheme === 'light') {
+                    canvasContainer.style.backgroundColor = '#ffffff';
+                } else if (nextTheme === 'eco') {
+                    // 生态绿主题使用渐变背景
+                    canvasContainer.style.background = 'radial-gradient(circle, #2ec4b6 0%, #1a535c 100%)';
+                } else if (nextTheme === 'ocean') {
+                    // 海洋主题使用淡蓝色背景
+                    canvasContainer.style.background = '#e0f7fa';
+                } else {
+                    canvasContainer.style.backgroundColor = '#111827';
+                }
+                
+                // 在主题切换时更新链1磷酸二脂键颜色和氢键颜色
+                let phosphodiesterColor, hydrogenColor, labelColor;
+                
+                if (body.classList.contains('light-theme')) {
+                    // 亮色主题：使用黑色
+                    phosphodiesterColor = '#000000'; // 黑色
+                    hydrogenColor = '#000000'; // 黑色
+                    labelColor = '#000000'; // 黑色
+                } else if (body.classList.contains('eco-theme')) {
+                    // 生态绿主题：使用白色文字，确保在绿色背景上清晰可见
+                    phosphodiesterColor = '#FFFFFF'; // 白色
+                    hydrogenColor = '#FFFFFF'; // 白色
+                    labelColor = '#FFFFFF'; // 白色
+                } else {
+                    // 深色主题：使用白色
+                    phosphodiesterColor = '#FFFFFF'; // 白色
+                    hydrogenColor = '#FFFFFF'; // 白色
+                    labelColor = '#FFFFFF'; // 白色
+                }
+                
+                // 更新链1磷酸二脂键颜色
+                config.colors.strand1.phosphodiester = parseInt(phosphodiesterColor.replace('#', '0x'), 16);
+                const strand1PhosphodiesterColorPicker = document.getElementById('strand1PhosphodiesterColorPicker');
+                if (strand1PhosphodiesterColorPicker) {
+                    strand1PhosphodiesterColorPicker.value = phosphodiesterColor;
+                }
+                const strand1PhosphodiesterColorIndicator = document.getElementById('strand1PhosphodiesterColorIndicator');
+                if (strand1PhosphodiesterColorIndicator) {
+                    strand1PhosphodiesterColorIndicator.style.backgroundColor = phosphodiesterColor;
+                }
+                
+                // 更新氢键颜色
+                config.colors.hydrogen = parseInt(hydrogenColor.replace('#', '0x'), 16);
+                const hydrogenColorPicker = document.getElementById('hydrogenColorPicker');
+                if (hydrogenColorPicker) {
+                    hydrogenColorPicker.value = hydrogenColor;
+                }
+                const hydrogenColorIndicator = document.getElementById('hydrogenColorIndicator');
+                if (hydrogenColorIndicator) {
+                    hydrogenColorIndicator.style.backgroundColor = hydrogenColor;
+                }
+                
+                // 应用颜色更新到3D模型
+                updateComponentColor('strand1-phosphodiester', phosphodiesterColor);
+                updateComponentColor('hydrogen', hydrogenColor);
+                
+                // 同时更新所有标签的颜色
+                labels.forEach(label => {
+                    if (label instanceof THREE.Sprite && label.userData.type === 'label') {
+                        const canvas = label.material.map.image;
+                        if (canvas) {
+                            const ctx = canvas.getContext('2d');
+                            const text = label.userData.content;
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            // 根据主题设置标签颜色
+                            ctx.fillStyle = labelColor;
+                            ctx.font = 'bold 32px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+                            label.material.map.needsUpdate = true;
+                        }
+                    }
+                });
+            });
+            
+            // 初始化颜色指示器
+            const colorComponents = [
+                // 链1组件
+                'strand1-phosphate', 'strand1-sugar', 'strand1-phosphodiester',
+                // 链2组件
+                'strand2-phosphate', 'strand2-sugar', 'strand2-phosphodiester',
+                // 通用组件
+                'adenine', 'thymine', 'cytosine', 'guanine', 'hydrogen'
+            ];
+            
+            colorComponents.forEach(component => {
+                let hexColor;
+                
+                // 根据组件类型获取正确的颜色值
+                if (component.startsWith('strand1-')) {
+                    const actualType = component.replace('strand1-', '');
+                    hexColor = '#' + config.colors.strand1[actualType].toString(16).padStart(6, '0');
+                } else if (component.startsWith('strand2-')) {
+                    const actualType = component.replace('strand2-', '');
+                    hexColor = '#' + config.colors.strand2[actualType].toString(16).padStart(6, '0');
+                } else {
+                    // 通用颜色
+                    hexColor = '#' + config.colors[component].toString(16).padStart(6, '0');
+                }
+                
+                // 将连字符命名转换为驼峰命名
+                const camelCaseComponent = component.replace(/-([a-z])/g, g => g[1].toUpperCase());
+                const picker = document.getElementById(`${camelCaseComponent}ColorPicker`);
+                const indicator = document.getElementById(`${camelCaseComponent}ColorIndicator`);
+                
+                if (picker) {
+                    picker.value = hexColor;
+                }
+                
+                if (indicator) {
+                    indicator.style.backgroundColor = hexColor;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
