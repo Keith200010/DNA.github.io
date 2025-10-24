@@ -429,6 +429,9 @@
             <button id="resetColors" class="w-full bg-secondary hover:bg-secondary/80 text-white py-2 px-3 rounded text-sm transition">
                 <i class="fa fa-paint-brush mr-1"></i> 恢复默认颜色
             </button>
+            <button id="takeScreenshot" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded text-sm transition">
+                <i class="fa fa-camera mr-1"></i> 截取模型图像
+            </button>
         </div>
         
         <!-- 标识说明和颜色自定义 -->
@@ -1931,6 +1934,9 @@
                     if (child.userData && child.userData.type === 'label') {
                         if (child.userData.content === 'P') {
                             child.visible = config.show.labels && config.show.phosphates;
+                        } else if (/^[1-5]$/.test(child.userData.content)) {
+                            // 数字标签（1-5）与五碳糖同步显示
+                            child.visible = config.show.labels && config.show.sugars;
                         } else {
                             child.visible = config.show.labels && config.show.bases;
                         }
@@ -1990,6 +1996,9 @@
                     if (child.userData && child.userData.type === 'label') {
                         if (child.userData.content === 'P') {
                             child.visible = config.show.labels && config.show.phosphates;
+                        } else if (/^[1-5]$/.test(child.userData.content)) {
+                            // 数字标签（1-5）与五碳糖同步显示
+                            child.visible = config.show.labels && config.show.sugars;
                         } else {
                             child.visible = config.show.labels && config.show.bases;
                         }
@@ -2010,10 +2019,21 @@
             // 额外保险：直接遍历labels数组更新所有标签的可见性，使用与前面相同的逻辑
             console.log('Updating labels directly, total labels:', labels.length);
             labels.forEach((label, index) => {
-                if (label instanceof THREE.Sprite) {
-                    const labelVisible = config.show.labels;
+                if (label instanceof THREE.Sprite && label.userData && label.userData.type === 'label') {
+                    let labelVisible = config.show.labels;
+                    
+                    // 与前面相同的逻辑：根据标签内容决定可见性条件
+                    if (label.userData.content === 'P') {
+                        labelVisible = config.show.labels && config.show.phosphates;
+                    } else if (/^[1-5]$/.test(label.userData.content)) {
+                        // 数字标签（1-5）与五碳糖同步显示
+                        labelVisible = config.show.labels && config.show.sugars;
+                    } else {
+                        labelVisible = config.show.labels && config.show.bases;
+                    }
+                    
                     label.visible = labelVisible;
-                    console.log(`Label ${index} visible:`, labelVisible);
+                    console.log(`Label ${index} (${label.userData.content}) visible:`, labelVisible);
                 }
             });
         }
@@ -2116,6 +2136,52 @@
                 updateStatus('正在恢复默认颜色...');
                 resetColorsToDefault();
             });
+            
+            // 截屏功能
+            document.getElementById('takeScreenshot').addEventListener('click', () => {
+                updateStatus('正在生成截图...');
+                takeScreenshot();
+            });
+        }
+        
+        // 截屏函数
+        function takeScreenshot() {
+            try {
+                // 渲染一帧以确保场景是最新的
+                renderer.render(scene, camera);
+                
+                // 创建截图数据URL
+                const screenshot = renderer.domElement.toDataURL('image/png');
+                
+                // 创建一个临时的a标签用于下载
+                const link = document.createElement('a');
+                link.href = screenshot;
+                link.download = `DNA_model_screenshot_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+                
+                // 模拟点击下载
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                updateStatus('截图已保存');
+                
+                // 显示成功提示
+                const notification = document.createElement('div');
+                notification.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg z-50';
+                notification.textContent = '截图已成功下载！';
+                document.body.appendChild(notification);
+                
+                // 3秒后移除提示
+                setTimeout(() => {
+                    notification.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 500);
+                }, 3000);
+            } catch (error) {
+                console.error('截图失败:', error);
+                updateStatus('截图失败，请重试');
+            }
         }
         
         // 动画循环
